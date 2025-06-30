@@ -9,6 +9,8 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Children from "./pages/Children";
+import Menu from "./pages/Menu";
+import Order from "./pages/Order";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -66,6 +68,16 @@ const App = () => (
           <Route path="/children" element={
             <ProtectedRoute>
               <Children />
+            </ProtectedRoute>
+          } />
+          <Route path="/menu" element={
+            <ProtectedRoute>
+              <Menu />
+            </ProtectedRoute>
+          } />
+          <Route path="/order" element={
+            <ProtectedRoute>
+              <Order />
             </ProtectedRoute>
           } />
           <Route path="*" element={<NotFound />} />

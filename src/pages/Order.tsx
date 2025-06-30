@@ -1,0 +1,278 @@
+
+import { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { UtensilsCrossed, LogOut, ArrowLeft } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import type { Tables } from "@/integrations/supabase/types";
+
+type Child = Tables<"children">;
+
+const Order = () => {
+  const { user, signOut } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [selectedChild, setSelectedChild] = useState<string>("");
+  const [deliveryDate, setDeliveryDate] = useState<string>("");
+  const [notes, setNotes] = useState<string>("");
+
+  // Fetch children data
+  const { data: children, isLoading: childrenLoading } = useQuery({
+    queryKey: ['children'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('children')
+        .select('*')
+        .order('name');
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Create order mutation
+  const createOrderMutation = useMutation({
+    mutationFn: async (orderData: {
+      childId: string;
+      deliveryDate: string;
+      notes: string;
+      totalAmount: number;
+      items: Array<{ menuItemId: string; quantity: number; price: number }>;
+    }) => {
+      // Create the order
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .insert([{
+          parent_id: user!.id,
+          child_id: orderData.childId,
+          delivery_date: orderData.deliveryDate,
+          order_date: new Date().toISOString().split('T')[0],
+          total_amount: orderData.totalAmount,
+          notes: orderData.notes,
+          status: 'pending'
+        }])
+        .select()
+        .single();
+
+      if (orderError) throw orderError;
+
+      // Create order items
+      const orderItems = orderData.items.map(item => ({
+        order_id: order.id,
+        menu_item_id: item.menuItemId,
+        quantity: item.quantity,
+        price: item.price
+      }));
+
+      const { error: itemsError } = await supabase
+        .from('order_items')
+        .insert(orderItems);
+
+      if (itemsError) throw itemsError;
+
+      return order;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Pesanan berhasil dibuat!",
+        description: "Pesanan Anda telah diterima dan sedang diproses.",
+      });
+      // Clear cart from localStorage if you're using it
+      localStorage.removeItem('cart');
+      // Redirect to dashboard
+      window.location.href = '/dashboard';
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Gagal membuat pesanan",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Get cart from localStorage or state management
+    const cartData = localStorage.getItem('cart');
+    if (!cartData) {
+      toast({
+        title: "Keranjang kosong",
+        description: "Silakan pilih menu terlebih dahulu.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const cart = JSON.parse(cartData);
+    if (cart.length === 0) {
+      toast({
+        title: "Keranjang kosong",
+        description: "Silakan pilih menu terlebih dahulu.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const totalAmount = cart.reduce((total: number, item: any) => 
+      total + (item.menu_item.price * item.quantity), 0
+    );
+
+    const items = cart.map((item: any) => ({
+      menuItemId: item.menu_item.id,
+      quantity: item.quantity,
+      price: item.menu_item.price
+    }));
+
+    createOrderMutation.mutate({
+      childId: selectedChild,
+      deliveryDate,
+      notes,
+      totalAmount,
+      items
+    });
+  };
+
+  // Get tomorrow's date as minimum delivery date
+  const getTomorrowDate = () => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().split('T')[0];
+  };
+
+  if (childrenLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-green-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-orange-500"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-green-50">
+      <header className="bg-white/80 backdrop-blur-md border-b border-orange-100 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center space-x-2">
+              <UtensilsCrossed className="h-8 w-8 text-orange-500" />
+              <span className="text-xl font-bold text-gray-900">Sekolah Kuliner Ceria</span>
+            </div>
+            
+            <div className="flex items-center space-x-4">
+              <Button
+                onClick={() => window.location.href = '/menu'}
+                variant="ghost"
+                size="sm"
+                className="text-orange-600 hover:bg-orange-50"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Kembali ke Menu
+              </Button>
+              <span className="text-sm text-gray-600">
+                {user?.user_metadata?.full_name || user?.email}
+              </span>
+              <Button
+                onClick={signOut}
+                variant="outline"
+                size="sm"
+                className="border-orange-200 text-orange-600 hover:bg-orange-50"
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Keluar
+              </Button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Buat Pesanan</h1>
+          <p className="text-gray-600">Lengkapi informasi pesanan untuk anak Anda</p>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Detail Pesanan</CardTitle>
+            <CardDescription>
+              Pastikan semua informasi sudah benar sebelum mengirim pesanan
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="child">Pilih Anak</Label>
+                <Select value={selectedChild} onValueChange={setSelectedChild} required>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih anak yang akan menerima pesanan" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {children?.map((child) => (
+                      <SelectItem key={child.id} value={child.id}>
+                        {child.name} - Kelas {child.class_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="deliveryDate">Tanggal Pengiriman</Label>
+                <Input
+                  id="deliveryDate"
+                  type="date"
+                  value={deliveryDate}
+                  onChange={(e) => setDeliveryDate(e.target.value)}
+                  min={getTomorrowDate()}
+                  required
+                />
+                <p className="text-sm text-gray-500">
+                  Pesanan akan dikirim ke sekolah pada tanggal yang dipilih
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="notes">Catatan Tambahan (Opsional)</Label>
+                <Textarea
+                  id="notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Contoh: Tidak pedas, tanpa bawang, dll."
+                  rows={3}
+                />
+              </div>
+
+              <div className="flex space-x-4 pt-4">
+                <Button
+                  type="submit"
+                  className="bg-orange-500 hover:bg-orange-600 text-white"
+                  disabled={createOrderMutation.isPending}
+                >
+                  {createOrderMutation.isPending ? "Membuat Pesanan..." : "Buat Pesanan"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => window.location.href = '/menu'}
+                  disabled={createOrderMutation.isPending}
+                >
+                  Kembali ke Menu
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      </main>
+    </div>
+  );
+};
+
+export default Order;

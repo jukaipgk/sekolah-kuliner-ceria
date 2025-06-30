@@ -1,43 +1,39 @@
+
 import { useAuth } from "@/hooks/useAuth";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { UtensilsCrossed, Users, CalendarCheck, ShoppingCart, LogOut } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { UtensilsCrossed, Users, ShoppingCart, ClipboardList, LogOut } from "lucide-react";
 
 const Dashboard = () => {
   const { user, signOut } = useAuth();
-  const navigate = useNavigate();
 
-  const features = [
-    {
-      icon: Users,
-      title: "Kelola Anak",
-      description: "Tambah dan kelola data anak-anak Anda",
-      color: "bg-blue-100 text-blue-600",
-      action: () => navigate('/children')
+  // Fetch children count
+  const { data: childrenCount } = useQuery({
+    queryKey: ['children-count'],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from('children')
+        .select('*', { count: 'exact', head: true });
+      
+      if (error) throw error;
+      return count || 0;
     },
-    {
-      icon: UtensilsCrossed,
-      title: "Menu Makanan",
-      description: "Lihat menu makanan harian yang tersedia",
-      color: "bg-green-100 text-green-600",
-      action: () => console.log('Menu makanan - coming soon')
+  });
+
+  // Fetch orders count
+  const { data: ordersCount } = useQuery({
+    queryKey: ['orders-count'],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from('orders')
+        .select('*', { count: 'exact', head: true });
+      
+      if (error) throw error;
+      return count || 0;
     },
-    {
-      icon: CalendarCheck,
-      title: "Buat Pesanan",
-      description: "Pesan makanan untuk anak-anak Anda",
-      color: "bg-orange-100 text-orange-600",
-      action: () => console.log('Buat pesanan - coming soon')
-    },
-    {
-      icon: ShoppingCart,
-      title: "Riwayat Pesanan",
-      description: "Lihat riwayat pesanan yang telah dibuat",
-      color: "bg-purple-100 text-purple-600",
-      action: () => console.log('Riwayat pesanan - coming soon')
-    }
-  ];
+  });
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-green-50">
@@ -51,7 +47,7 @@ const Dashboard = () => {
             
             <div className="flex items-center space-x-4">
               <span className="text-sm text-gray-600">
-                Selamat datang, {user?.user_metadata?.full_name || user?.email}
+                {user?.user_metadata?.full_name || user?.email}
               </span>
               <Button
                 onClick={signOut}
@@ -69,73 +65,117 @@ const Dashboard = () => {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
-          <p className="text-gray-600">Kelola pesanan makanan anak dengan mudah dan praktis</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            Selamat Datang di Sekolah Kuliner Ceria
+          </h1>
+          <p className="text-gray-600">
+            Kelola pesanan makanan untuk anak-anak Anda dengan mudah
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {features.map((feature, index) => {
-            const IconComponent = feature.icon;
-            return (
-              <Card 
-                key={index} 
-                className="hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={feature.action}
-              >
-                <CardHeader>
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center ${feature.color} mb-4`}>
-                    <IconComponent className="h-6 w-6" />
-                  </div>
-                  <CardTitle className="text-lg">{feature.title}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <CardDescription>{feature.description}</CardDescription>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-
-        <div className="mt-12">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           <Card>
-            <CardHeader>
-              <CardTitle>Selamat Datang di Sistem Pemesanan Makanan Sekolah</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Anak</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-gray-600">
-                Sistem ini memudahkan Anda untuk memesan makanan bergizi untuk anak-anak di sekolah. 
-                Berikut langkah-langkah yang dapat Anda lakukan:
+            <CardContent>
+              <div className="text-2xl font-bold">{childrenCount}</div>
+              <p className="text-xs text-muted-foreground">
+                Anak yang terdaftar
               </p>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-4 bg-blue-50 rounded-lg">
-                  <h3 className="font-semibold text-blue-900 mb-2">1. Kelola Data Anak</h3>
-                  <p className="text-blue-700 text-sm">
-                    Tambahkan data anak-anak Anda termasuk nama, kelas, dan informasi alergi makanan.
-                  </p>
-                </div>
-                
-                <div className="p-4 bg-green-50 rounded-lg">
-                  <h3 className="font-semibold text-green-900 mb-2">2. Lihat Menu Harian</h3>
-                  <p className="text-green-700 text-sm">
-                    Cek menu makanan yang tersedia setiap hari dengan harga yang transparan.
-                  </p>
-                </div>
-                
-                <div className="p-4 bg-orange-50 rounded-lg">
-                  <h3 className="font-semibold text-orange-900 mb-2">3. Buat Pesanan</h3>
-                  <p className="text-orange-700 text-sm">
-                    Pesan makanan untuk anak-anak Anda sesuai dengan jadwal dan kebutuhan.
-                  </p>
-                </div>
-                
-                <div className="p-4 bg-purple-50 rounded-lg">
-                  <h3 className="font-semibold text-purple-900 mb-2">4. Pantau Riwayat</h3>
-                  <p className="text-purple-700 text-sm">
-                    Lihat riwayat pesanan dan status pengiriman makanan secara real-time.
-                  </p>
-                </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Pesanan</CardTitle>
+              <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{ordersCount}</div>
+              <p className="text-xs text-muted-foreground">
+                Pesanan yang dibuat
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Status</CardTitle>
+              <ClipboardList className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">Aktif</div>
+              <p className="text-xs text-muted-foreground">
+                Sistem berjalan normal
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer" 
+                onClick={() => window.location.href = '/children'}>
+            <CardHeader>
+              <div className="flex items-center space-x-2">
+                <Users className="h-6 w-6 text-orange-500" />
+                <CardTitle>Kelola Anak</CardTitle>
               </div>
+            </CardHeader>
+            <CardContent>
+              <CardDescription>
+                Tambah, edit, atau hapus data anak-anak Anda
+              </CardDescription>
+              <Button 
+                className="w-full mt-4 bg-orange-500 hover:bg-orange-600 text-white"
+                onClick={() => window.location.href = '/children'}
+              >
+                Kelola Anak
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => window.location.href = '/menu'}>
+            <CardHeader>
+              <div className="flex items-center space-x-2">
+                <UtensilsCrossed className="h-6 w-6 text-green-500" />
+                <CardTitle>Lihat Menu</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <CardDescription>
+                Jelajahi menu makanan dan buat pesanan baru
+              </CardDescription>
+              <Button 
+                className="w-full mt-4 bg-green-500 hover:bg-green-600 text-white"
+                onClick={() => window.location.href = '/menu'}
+              >
+                Lihat Menu
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader>
+              <div className="flex items-center space-x-2">
+                <ClipboardList className="h-6 w-6 text-blue-500" />
+                <CardTitle>Riwayat Pesanan</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <CardDescription>
+                Lihat riwayat pesanan dan status pengiriman
+              </CardDescription>
+              <Button 
+                className="w-full mt-4 bg-blue-500 hover:bg-blue-600 text-white"
+                disabled
+              >
+                Segera Hadir
+              </Button>
             </CardContent>
           </Card>
         </div>
