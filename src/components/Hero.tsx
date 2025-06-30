@@ -1,8 +1,11 @@
 
 import { Button } from "@/components/ui/button";
 import { CalendarCheck, Users, UtensilsCrossed } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const Hero = () => {
+  const navigate = useNavigate();
+
   return (
     <section className="py-20 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
@@ -17,11 +20,20 @@ const Hero = () => {
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
-            <Button size="lg" className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-3 text-lg">
+            <Button 
+              size="lg" 
+              className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-3 text-lg"
+              onClick={() => navigate('/auth')}
+            >
               <CalendarCheck className="mr-2 h-5 w-5" />
               Mulai Pesan Sekarang
             </Button>
-            <Button size="lg" variant="outline" className="border-orange-200 text-orange-600 hover:bg-orange-50 px-8 py-3 text-lg">
+            <Button 
+              size="lg" 
+              variant="outline" 
+              className="border-orange-200 text-orange-600 hover:bg-orange-50 px-8 py-3 text-lg"
+              onClick={() => navigate('/auth')}
+            >
               <Users className="mr-2 h-5 w-5" />
               Daftar sebagai Orang Tua
             </Button>

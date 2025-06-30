@@ -2,9 +2,11 @@
 import { Button } from "@/components/ui/button";
 import { UtensilsCrossed, Menu } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 const Navigation = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const navigate = useNavigate();
 
   return (
     <nav className="bg-white/80 backdrop-blur-md border-b border-orange-100 sticky top-0 z-50">
@@ -20,10 +22,17 @@ const Navigation = () => {
             <a href="#" className="text-gray-700 hover:text-orange-500 transition-colors">Menu</a>
             <a href="#" className="text-gray-700 hover:text-orange-500 transition-colors">Tentang</a>
             <a href="#" className="text-gray-700 hover:text-orange-500 transition-colors">Kontak</a>
-            <Button variant="outline" className="border-orange-200 text-orange-600 hover:bg-orange-50">
+            <Button 
+              variant="outline" 
+              className="border-orange-200 text-orange-600 hover:bg-orange-50"
+              onClick={() => navigate('/auth')}
+            >
               Masuk
             </Button>
-            <Button className="bg-orange-500 hover:bg-orange-600 text-white">
+            <Button 
+              className="bg-orange-500 hover:bg-orange-600 text-white"
+              onClick={() => navigate('/auth')}
+            >
               Daftar
             </Button>
           </div>
@@ -47,10 +56,17 @@ const Navigation = () => {
               <a href="#" className="text-gray-700 hover:text-orange-500 transition-colors">Tentang</a>
               <a href="#" className="text-gray-700 hover:text-orange-500 transition-colors">Kontak</a>
               <div className="flex flex-col space-y-2 pt-2">
-                <Button variant="outline" className="border-orange-200 text-orange-600 hover:bg-orange-50">
+                <Button 
+                  variant="outline" 
+                  className="border-orange-200 text-orange-600 hover:bg-orange-50"
+                  onClick={() => navigate('/auth')}
+                >
                   Masuk
                 </Button>
-                <Button className="bg-orange-500 hover:bg-orange-600 text-white">
+                <Button 
+                  className="bg-orange-500 hover:bg-orange-600 text-white"
+                  onClick={() => navigate('/auth')}
+                >
                   Daftar
                 </Button>
               </div>
