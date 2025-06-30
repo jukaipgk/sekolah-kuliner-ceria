@@ -1,36 +1,41 @@
-
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { UtensilsCrossed, Users, CalendarCheck, ShoppingCart, LogOut } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const Dashboard = () => {
   const { user, signOut } = useAuth();
+  const navigate = useNavigate();
 
   const features = [
     {
       icon: Users,
       title: "Kelola Anak",
       description: "Tambah dan kelola data anak-anak Anda",
-      color: "bg-blue-100 text-blue-600"
+      color: "bg-blue-100 text-blue-600",
+      action: () => navigate('/children')
     },
     {
       icon: UtensilsCrossed,
       title: "Menu Makanan",
       description: "Lihat menu makanan harian yang tersedia",
-      color: "bg-green-100 text-green-600"
+      color: "bg-green-100 text-green-600",
+      action: () => console.log('Menu makanan - coming soon')
     },
     {
       icon: CalendarCheck,
       title: "Buat Pesanan",
       description: "Pesan makanan untuk anak-anak Anda",
-      color: "bg-orange-100 text-orange-600"
+      color: "bg-orange-100 text-orange-600",
+      action: () => console.log('Buat pesanan - coming soon')
     },
     {
       icon: ShoppingCart,
       title: "Riwayat Pesanan",
       description: "Lihat riwayat pesanan yang telah dibuat",
-      color: "bg-purple-100 text-purple-600"
+      color: "bg-purple-100 text-purple-600",
+      action: () => console.log('Riwayat pesanan - coming soon')
     }
   ];
 
@@ -72,7 +77,11 @@ const Dashboard = () => {
           {features.map((feature, index) => {
             const IconComponent = feature.icon;
             return (
-              <Card key={index} className="hover:shadow-lg transition-shadow cursor-pointer">
+              <Card 
+                key={index} 
+                className="hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={feature.action}
+              >
                 <CardHeader>
                   <div className={`w-12 h-12 rounded-full flex items-center justify-center ${feature.color} mb-4`}>
                     <IconComponent className="h-6 w-6" />
