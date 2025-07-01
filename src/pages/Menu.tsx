@@ -1,6 +1,6 @@
 
-import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useCart } from "@/hooks/useCart";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -14,15 +14,17 @@ type MenuItem = Tables<"menu_items"> & {
   menu_categories: { name: string };
 };
 
-type CartItem = {
-  menu_item: MenuItem;
-  quantity: number;
-};
-
 const Menu = () => {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const {
+    cart,
+    addToCart,
+    removeFromCart,
+    getCartItemQuantity,
+    getTotalItems,
+    getTotalPrice
+  } = useCart();
 
   // Fetch menu items with categories
   const { data: menuItems, isLoading } = useQuery({
@@ -54,49 +56,12 @@ const Menu = () => {
     return acc;
   }, {} as Record<string, MenuItem[]>) || {};
 
-  const addToCart = (menuItem: MenuItem) => {
-    setCart(prev => {
-      const existingItem = prev.find(item => item.menu_item.id === menuItem.id);
-      if (existingItem) {
-        return prev.map(item =>
-          item.menu_item.id === menuItem.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        );
-      }
-      return [...prev, { menu_item: menuItem, quantity: 1 }];
-    });
-    
+  const handleAddToCart = (menuItem: MenuItem) => {
+    addToCart(menuItem);
     toast({
       title: "Ditambahkan ke keranjang",
       description: `${menuItem.name} berhasil ditambahkan`,
     });
-  };
-
-  const removeFromCart = (menuItemId: string) => {
-    setCart(prev => {
-      const existingItem = prev.find(item => item.menu_item.id === menuItemId);
-      if (existingItem && existingItem.quantity > 1) {
-        return prev.map(item =>
-          item.menu_item.id === menuItemId
-            ? { ...item, quantity: item.quantity - 1 }
-            : item
-        );
-      }
-      return prev.filter(item => item.menu_item.id !== menuItemId);
-    });
-  };
-
-  const getCartItemQuantity = (menuItemId: string) => {
-    return cart.find(item => item.menu_item.id === menuItemId)?.quantity || 0;
-  };
-
-  const getTotalItems = () => {
-    return cart.reduce((total, item) => total + item.quantity, 0);
-  };
-
-  const getTotalPrice = () => {
-    return cart.reduce((total, item) => total + (item.menu_item.price * item.quantity), 0);
   };
 
   if (isLoading) {
@@ -190,7 +155,7 @@ const Menu = () => {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => addToCart(item.menu_item)}
+                          onClick={() => handleAddToCart(item.menu_item)}
                           className="h-6 w-6 p-0"
                         >
                           <Plus className="h-3 w-3" />
@@ -253,14 +218,14 @@ const Menu = () => {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => addToCart(item)}
+                              onClick={() => handleAddToCart(item)}
                             >
                               <Plus className="h-4 w-4" />
                             </Button>
                           </div>
                         ) : (
                           <Button
-                            onClick={() => addToCart(item)}
+                            onClick={() => handleAddToCart(item)}
                             className="bg-orange-500 hover:bg-orange-600 text-white"
                           >
                             <Plus className="h-4 w-4 mr-2" />

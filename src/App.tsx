@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard";
 import Children from "./pages/Children";
 import Menu from "./pages/Menu";
 import Order from "./pages/Order";
+import OrderHistory from "./pages/OrderHistory";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -78,6 +79,11 @@ const App = () => (
           <Route path="/order" element={
             <ProtectedRoute>
               <Order />
+            </ProtectedRoute>
+          } />
+          <Route path="/order-history" element={
+            <ProtectedRoute>
+              <OrderHistory />
             </ProtectedRoute>
           } />
           <Route path="*" element={<NotFound />} />

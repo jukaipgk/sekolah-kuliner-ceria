@@ -1,6 +1,7 @@
 
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useCart } from "@/hooks/useCart";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ const Order = () => {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { cart, getTotalPrice, clearCart } = useCart();
   const [selectedChild, setSelectedChild] = useState<string>("");
   const [deliveryDate, setDeliveryDate] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
@@ -84,8 +86,8 @@ const Order = () => {
         title: "Pesanan berhasil dibuat!",
         description: "Pesanan Anda telah diterima dan sedang diproses.",
       });
-      // Clear cart from localStorage if you're using it
-      localStorage.removeItem('cart');
+      // Clear cart
+      clearCart();
       // Redirect to dashboard
       window.location.href = '/dashboard';
     },
@@ -101,18 +103,6 @@ const Order = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Get cart from localStorage or state management
-    const cartData = localStorage.getItem('cart');
-    if (!cartData) {
-      toast({
-        title: "Keranjang kosong",
-        description: "Silakan pilih menu terlebih dahulu.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const cart = JSON.parse(cartData);
     if (cart.length === 0) {
       toast({
         title: "Keranjang kosong",
@@ -122,11 +112,8 @@ const Order = () => {
       return;
     }
 
-    const totalAmount = cart.reduce((total: number, item: any) => 
-      total + (item.menu_item.price * item.quantity), 0
-    );
-
-    const items = cart.map((item: any) => ({
+    const totalAmount = getTotalPrice();
+    const items = cart.map((item) => ({
       menuItemId: item.menu_item.id,
       quantity: item.quantity,
       price: item.menu_item.price
@@ -199,77 +186,123 @@ const Order = () => {
           <p className="text-gray-600">Lengkapi informasi pesanan untuk anak Anda</p>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Detail Pesanan</CardTitle>
-            <CardDescription>
-              Pastikan semua informasi sudah benar sebelum mengirim pesanan
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="child">Pilih Anak</Label>
-                <Select value={selectedChild} onValueChange={setSelectedChild} required>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih anak yang akan menerima pesanan" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {children?.map((child) => (
-                      <SelectItem key={child.id} value={child.id}>
-                        {child.name} - Kelas {child.class_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Order Summary */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Ringkasan Pesanan</CardTitle>
+              <CardDescription>Item yang akan dipesan</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {cart.length > 0 ? (
+                <div className="space-y-4">
+                  {cart.map((item) => (
+                    <div key={item.menu_item.id} className="flex justify-between items-center">
+                      <div>
+                        <h4 className="font-medium">{item.menu_item.name}</h4>
+                        <p className="text-sm text-gray-600">
+                          {item.quantity} x Rp {item.menu_item.price.toLocaleString('id-ID')}
+                        </p>
+                      </div>
+                      <div className="font-medium">
+                        Rp {(item.menu_item.price * item.quantity).toLocaleString('id-ID')}
+                      </div>
+                    </div>
+                  ))}
+                  <div className="border-t pt-4">
+                    <div className="flex justify-between items-center font-bold text-lg">
+                      <span>Total:</span>
+                      <span>Rp {getTotalPrice().toLocaleString('id-ID')}</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-gray-600 mb-4">Keranjang belanja kosong</p>
+                  <Button
+                    onClick={() => window.location.href = '/menu'}
+                    className="bg-orange-500 hover:bg-orange-600 text-white"
+                  >
+                    Pilih Menu
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-              <div className="space-y-2">
-                <Label htmlFor="deliveryDate">Tanggal Pengiriman</Label>
-                <Input
-                  id="deliveryDate"
-                  type="date"
-                  value={deliveryDate}
-                  onChange={(e) => setDeliveryDate(e.target.value)}
-                  min={getTomorrowDate()}
-                  required
-                />
-                <p className="text-sm text-gray-500">
-                  Pesanan akan dikirim ke sekolah pada tanggal yang dipilih
-                </p>
-              </div>
+          {/* Order Form */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Detail Pesanan</CardTitle>
+              <CardDescription>
+                Pastikan semua informasi sudah benar sebelum mengirim pesanan
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="child">Pilih Anak</Label>
+                  <Select value={selectedChild} onValueChange={setSelectedChild} required>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Pilih anak yang akan menerima pesanan" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {children?.map((child) => (
+                        <SelectItem key={child.id} value={child.id}>
+                          {child.name} - Kelas {child.class_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="notes">Catatan Tambahan (Opsional)</Label>
-                <Textarea
-                  id="notes"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Contoh: Tidak pedas, tanpa bawang, dll."
-                  rows={3}
-                />
-              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="deliveryDate">Tanggal Pengiriman</Label>
+                  <Input
+                    id="deliveryDate"
+                    type="date"
+                    value={deliveryDate}
+                    onChange={(e) => setDeliveryDate(e.target.value)}
+                    min={getTomorrowDate()}
+                    required
+                  />
+                  <p className="text-sm text-gray-500">
+                    Pesanan akan dikirim ke sekolah pada tanggal yang dipilih
+                  </p>
+                </div>
 
-              <div className="flex space-x-4 pt-4">
-                <Button
-                  type="submit"
-                  className="bg-orange-500 hover:bg-orange-600 text-white"
-                  disabled={createOrderMutation.isPending}
-                >
-                  {createOrderMutation.isPending ? "Membuat Pesanan..." : "Buat Pesanan"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => window.location.href = '/menu'}
-                  disabled={createOrderMutation.isPending}
-                >
-                  Kembali ke Menu
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
+                <div className="space-y-2">
+                  <Label htmlFor="notes">Catatan Tambahan (Opsional)</Label>
+                  <Textarea
+                    id="notes"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Contoh: Tidak pedas, tanpa bawang, dll."
+                    rows={3}
+                  />
+                </div>
+
+                <div className="flex space-x-4 pt-4">
+                  <Button
+                    type="submit"
+                    className="bg-orange-500 hover:bg-orange-600 text-white"
+                    disabled={createOrderMutation.isPending || cart.length === 0}
+                  >
+                    {createOrderMutation.isPending ? "Membuat Pesanan..." : "Buat Pesanan"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => window.location.href = '/menu'}
+                    disabled={createOrderMutation.isPending}
+                  >
+                    Kembali ke Menu
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
       </main>
     </div>
   );

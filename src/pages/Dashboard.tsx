@@ -159,7 +159,8 @@ const Dashboard = () => {
             </CardContent>
           </Card>
 
-          <Card className="hover:shadow-lg transition-shadow">
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => window.location.href = '/order-history'}>
             <CardHeader>
               <div className="flex items-center space-x-2">
                 <ClipboardList className="h-6 w-6 text-blue-500" />
@@ -172,9 +173,9 @@ const Dashboard = () => {
               </CardDescription>
               <Button 
                 className="w-full mt-4 bg-blue-500 hover:bg-blue-600 text-white"
-                disabled
+                onClick={() => window.location.href = '/order-history'}
               >
-                Segera Hadir
+                Lihat Riwayat
               </Button>
             </CardContent>
           </Card>
