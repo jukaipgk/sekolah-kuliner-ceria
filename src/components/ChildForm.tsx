@@ -14,8 +14,8 @@ type Child = Tables<"children">;
 
 interface ChildFormProps {
   child?: Child | null;
-  onSuccess: () => void;
-  onCancel: () => void;
+  onSuccess?: () => void;
+  onCancel?: () => void;
 }
 
 export const ChildForm = ({ child, onSuccess, onCancel }: ChildFormProps) => {
@@ -67,7 +67,7 @@ export const ChildForm = ({ child, onSuccess, onCancel }: ChildFormProps) => {
         title: "Berhasil!",
         description: child ? "Data anak berhasil diperbarui." : "Anak baru berhasil ditambahkan.",
       });
-      onSuccess();
+      if (onSuccess) onSuccess();
     },
     onError: (error: any) => {
       toast({
@@ -149,14 +149,16 @@ export const ChildForm = ({ child, onSuccess, onCancel }: ChildFormProps) => {
             : (child ? "Perbarui Data" : "Tambah Anak")
           }
         </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          disabled={saveChildMutation.isPending}
-        >
-          Batal
-        </Button>
+        {onCancel && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            disabled={saveChildMutation.isPending}
+          >
+            Batal
+          </Button>
+        )}
       </div>
     </form>
   );

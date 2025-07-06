@@ -9,8 +9,8 @@ type Child = Tables<"children">;
 
 interface ChildCardProps {
   child: Child;
-  onEdit: (child: Child) => void;
-  onDelete: (childId: string) => void;
+  onEdit?: (child: Child) => void;
+  onDelete?: (childId: string) => void;
 }
 
 export const ChildCard = ({ child, onEdit, onDelete }: ChildCardProps) => {
@@ -53,26 +53,32 @@ export const ChildCard = ({ child, onEdit, onDelete }: ChildCardProps) => {
             </div>
           )}
           
-          <div className="flex space-x-2 pt-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => onEdit(child)}
-              className="flex-1"
-            >
-              <Edit className="h-4 w-4 mr-2" />
-              Edit
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => onDelete(child.id)}
-              className="flex-1 text-red-600 hover:bg-red-50 hover:border-red-200"
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Hapus
-            </Button>
-          </div>
+          {(onEdit || onDelete) && (
+            <div className="flex space-x-2 pt-2">
+              {onEdit && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onEdit(child)}
+                  className="flex-1"
+                >
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit
+                </Button>
+              )}
+              {onDelete && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onDelete(child.id)}
+                  className="flex-1 text-red-600 hover:bg-red-50 hover:border-red-200"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Hapus
+                </Button>
+              )}
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

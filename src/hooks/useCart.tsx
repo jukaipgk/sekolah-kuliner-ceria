@@ -66,7 +66,7 @@ export const useCart = () => {
     localStorage.removeItem('cart');
   };
 
-  const getCartItemQuantity = (menuItemId: string) => {
+  const getItemQuantity = (menuItemId: string) => {
     return cart.find(item => item.menu_item.id === menuItemId)?.quantity || 0;
   };
 
@@ -83,7 +83,7 @@ export const useCart = () => {
     addToCart,
     removeFromCart,
     clearCart,
-    getCartItemQuantity,
+    getItemQuantity,
     getTotalItems,
     getTotalPrice
   };
