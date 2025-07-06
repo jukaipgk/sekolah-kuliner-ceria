@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useCart } from "@/hooks/useCart";
@@ -111,7 +110,7 @@ const Order = () => {
           })
           .eq('id', order.id);
 
-        return { ...order, payment_url: paymentData.payment_url };
+        return { ...order, midtrans_payment_url: paymentData.payment_url };
       }
 
       return order;
@@ -128,8 +127,8 @@ const Order = () => {
       clearCart();
       
       // If digital payment, redirect to payment URL
-      if (paymentMethod === 'digital' && order.payment_url) {
-        window.open(order.payment_url, '_blank');
+      if (paymentMethod === 'digital' && order.midtrans_payment_url) {
+        window.open(order.midtrans_payment_url, '_blank');
         setTimeout(() => {
           window.location.href = '/order-history';
         }, 2000);
