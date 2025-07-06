@@ -1,4 +1,5 @@
 
+import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useCart } from "@/hooks/useCart";
 import { useQuery } from "@tanstack/react-query";
@@ -6,125 +7,94 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { UtensilsCrossed, ShoppingCart, LogOut, Plus, Minus } from "lucide-react";
+import { DashboardNavigation } from "@/components/DashboardNavigation";
+import { ShoppingCart, Plus, Minus, ShoppingBag } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 import type { Tables } from "@/integrations/supabase/types";
 
 type MenuItem = Tables<"menu_items"> & {
-  menu_categories: { name: string };
+  menu_categories: Tables<"menu_categories">;
 };
 
 const Menu = () => {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
-  const {
-    cart,
-    addToCart,
-    removeFromCart,
-    getCartItemQuantity,
-    getTotalItems,
-    getTotalPrice
-  } = useCart();
+  const navigate = useNavigate();
+  const { cart, addToCart, removeFromCart, getItemQuantity, getTotalPrice, getTotalItems } = useCart();
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
 
-  // Fetch menu items with categories
-  const { data: menuItems, isLoading } = useQuery({
-    queryKey: ['menu-items'],
+  // Fetch menu categories
+  const { data: categories, isLoading: categoriesLoading } = useQuery({
+    queryKey: ['menu-categories'],
     queryFn: async () => {
       const { data, error } = await supabase
+        .from('menu_categories')
+        .select('*')
+        .order('name');
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Fetch menu items
+  const { data: menuItems, isLoading: itemsLoading } = useQuery({
+    queryKey: ['menu-items', selectedCategory],
+    queryFn: async () => {
+      let query = supabase
         .from('menu_items')
         .select(`
           *,
-          menu_categories!inner (
-            name
+          menu_categories (
+            id,
+            name,
+            description
           )
         `)
         .eq('is_available', true)
         .order('name');
-      
+
+      if (selectedCategory !== "all") {
+        query = query.eq('category_id', selectedCategory);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return data as MenuItem[];
     },
   });
 
-  // Group menu items by category
-  const menuByCategory = menuItems?.reduce((acc, item) => {
-    const categoryName = item.menu_categories.name;
-    if (!acc[categoryName]) {
-      acc[categoryName] = [];
-    }
-    acc[categoryName].push(item);
-    return acc;
-  }, {} as Record<string, MenuItem[]>) || {};
-
-  const handleAddToCart = (menuItem: MenuItem) => {
-    addToCart(menuItem);
+  const handleAddToCart = (item: MenuItem) => {
+    addToCart(item);
     toast({
       title: "Ditambahkan ke keranjang",
-      description: `${menuItem.name} berhasil ditambahkan`,
+      description: `${item.name} berhasil ditambahkan ke keranjang.`,
     });
   };
 
-  if (isLoading) {
+  const handleRemoveFromCart = (item: MenuItem) => {
+    removeFromCart(item.id);
+    toast({
+      title: "Dihapus dari keranjang",
+      description: `${item.name} dihapus dari keranjang.`,
+    });
+  };
+
+  if (categoriesLoading || itemsLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-green-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-orange-500"></div>
+      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-green-50">
+        <DashboardNavigation />
+        <div className="flex items-center justify-center py-20">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-orange-500"></div>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-green-50">
-      <header className="bg-white/80 backdrop-blur-md border-b border-orange-100 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-2">
-              <UtensilsCrossed className="h-8 w-8 text-orange-500" />
-              <span className="text-xl font-bold text-gray-900">Sekolah Kuliner Ceria</span>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              <Button
-                onClick={() => window.location.href = '/dashboard'}
-                variant="ghost"
-                size="sm"
-                className="text-orange-600 hover:bg-orange-50"
-              >
-                Dashboard
-              </Button>
-              <Button
-                onClick={() => window.location.href = '/children'}
-                variant="ghost"
-                size="sm"
-                className="text-orange-600 hover:bg-orange-50"
-              >
-                Kelola Anak
-              </Button>
-              <div className="relative">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="border-orange-200 text-orange-600 hover:bg-orange-50"
-                >
-                  <ShoppingCart className="h-4 w-4 mr-2" />
-                  Keranjang ({getTotalItems()})
-                </Button>
-              </div>
-              <span className="text-sm text-gray-600">
-                {user?.user_metadata?.full_name || user?.email}
-              </span>
-              <Button
-                onClick={signOut}
-                variant="outline"
-                size="sm"
-                className="border-orange-200 text-orange-600 hover:bg-orange-50"
-              >
-                <LogOut className="h-4 w-4 mr-2" />
-                Keluar
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <DashboardNavigation />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex justify-between items-center mb-8">
@@ -132,114 +102,148 @@ const Menu = () => {
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Menu Makanan</h1>
             <p className="text-gray-600">Pilih makanan favorit untuk anak Anda</p>
           </div>
+          
           {getTotalItems() > 0 && (
-            <Card className="w-80">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg">Keranjang Belanja</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="space-y-2 mb-4">
-                  {cart.map((item) => (
-                    <div key={item.menu_item.id} className="flex justify-between items-center text-sm">
-                      <span>{item.menu_item.name}</span>
-                      <div className="flex items-center space-x-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => removeFromCart(item.menu_item.id)}
-                          className="h-6 w-6 p-0"
-                        >
-                          <Minus className="h-3 w-3" />
-                        </Button>
-                        <span className="w-8 text-center">{item.quantity}</span>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleAddToCart(item.menu_item)}
-                          className="h-6 w-6 p-0"
-                        >
-                          <Plus className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="border-t pt-2">
-                  <div className="flex justify-between font-medium">
-                    <span>Total:</span>
-                    <span>Rp {getTotalPrice().toLocaleString('id-ID')}</span>
-                  </div>
-                </div>
-                <Button 
-                  className="w-full mt-4 bg-orange-500 hover:bg-orange-600 text-white"
-                  onClick={() => window.location.href = '/order'}
-                >
-                  Buat Pesanan
-                </Button>
-              </CardContent>
-            </Card>
+            <Button
+              onClick={() => navigate('/order')}
+              className="bg-orange-500 hover:bg-orange-600 text-white relative"
+            >
+              <ShoppingCart className="h-4 w-4 mr-2" />
+              Keranjang ({getTotalItems()})
+              <Badge className="ml-2 bg-orange-700">
+                Rp {getTotalPrice().toLocaleString('id-ID')}
+              </Badge>
+            </Button>
           )}
         </div>
 
-        <div className="space-y-8">
-          {Object.entries(menuByCategory).map(([categoryName, items]) => (
-            <div key={categoryName}>
-              <h2 className="text-2xl font-semibold text-gray-900 mb-4">{categoryName}</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {items.map((item) => (
-                  <Card key={item.id} className="hover:shadow-lg transition-shadow">
-                    <CardHeader className="pb-3">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <CardTitle className="text-lg">{item.name}</CardTitle>
-                          {item.description && (
-                            <CardDescription className="mt-1">{item.description}</CardDescription>
-                          )}
-                        </div>
-                        <Badge variant="secondary" className="ml-2">
+        {/* Category Filter */}
+        <div className="mb-8">
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={() => setSelectedCategory("all")}
+              variant={selectedCategory === "all" ? "default" : "outline"}
+              size="sm"
+              className={selectedCategory === "all" ? "bg-orange-500 hover:bg-orange-600" : "border-orange-200 text-orange-600 hover:bg-orange-50"}
+            >
+              Semua Menu
+            </Button>
+            {categories?.map((category) => (
+              <Button
+                key={category.id}
+                onClick={() => setSelectedCategory(category.id)}
+                variant={selectedCategory === category.id ? "default" : "outline"}
+                size="sm"
+                className={selectedCategory === category.id ? "bg-orange-500 hover:bg-orange-600" : "border-orange-200 text-orange-600 hover:bg-orange-50"}
+              >
+                {category.name}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        {/* Menu Items Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {menuItems && menuItems.length > 0 ? (
+            menuItems.map((item) => {
+              const quantity = getItemQuantity(item.id);
+              return (
+                <Card key={item.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+                  <CardHeader>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <CardTitle className="text-lg">{item.name}</CardTitle>
+                        <CardDescription className="text-orange-600 font-medium">
                           Rp {item.price.toLocaleString('id-ID')}
-                        </Badge>
+                        </CardDescription>
                       </div>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                      <div className="flex justify-between items-center">
-                        {getCartItemQuantity(item.id) > 0 ? (
-                          <div className="flex items-center space-x-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => removeFromCart(item.id)}
-                            >
-                              <Minus className="h-4 w-4" />
-                            </Button>
-                            <span className="w-8 text-center font-medium">
-                              {getCartItemQuantity(item.id)}
-                            </span>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleAddToCart(item)}
-                            >
-                              <Plus className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ) : (
+                      <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                        {item.menu_categories.name}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {item.description && (
+                      <p className="text-gray-600 text-sm mb-4">{item.description}</p>
+                    )}
+                    
+                    <div className="flex items-center justify-between">
+                      {quantity > 0 ? (
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            onClick={() => handleRemoveFromCart(item)}
+                            size="sm"
+                            variant="outline"
+                            className="border-orange-200 text-orange-600 hover:bg-orange-50"
+                          >
+                            <Minus className="h-4 w-4" />
+                          </Button>
+                          <span className="font-medium text-lg px-3">{quantity}</span>
                           <Button
                             onClick={() => handleAddToCart(item)}
+                            size="sm"
                             className="bg-orange-500 hover:bg-orange-600 text-white"
                           >
-                            <Plus className="h-4 w-4 mr-2" />
-                            Tambah
+                            <Plus className="h-4 w-4" />
                           </Button>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+                        </div>
+                      ) : (
+                        <Button
+                          onClick={() => handleAddToCart(item)}
+                          size="sm"
+                          className="bg-orange-500 hover:bg-orange-600 text-white"
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Tambah ke Keranjang
+                        </Button>
+                      )}
+                      
+                      {quantity > 0 && (
+                        <div className="text-right">
+                          <p className="text-sm text-gray-600">Subtotal</p>
+                          <p className="font-bold text-orange-600">
+                            Rp {(item.price * quantity).toLocaleString('id-ID')}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })
+          ) : (
+            <div className="col-span-full text-center py-12">
+              <ShoppingBag className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Tidak ada menu tersedia</h3>
+              <p className="text-gray-600">
+                {selectedCategory === "all" 
+                  ? "Belum ada menu yang tersedia saat ini."
+                  : "Tidak ada menu dalam kategori yang dipilih."}
+              </p>
             </div>
-          ))}
+          )}
         </div>
+
+        {/* Cart Summary (Fixed Bottom) */}
+        {getTotalItems() > 0 && (
+          <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg">
+            <div className="max-w-7xl mx-auto flex justify-between items-center">
+              <div>
+                <p className="text-sm text-gray-600">{getTotalItems()} item dalam keranjang</p>
+                <p className="font-bold text-lg text-orange-600">
+                  Total: Rp {getTotalPrice().toLocaleString('id-ID')}
+                </p>
+              </div>
+              <Button
+                onClick={() => navigate('/order')}
+                className="bg-orange-500 hover:bg-orange-600 text-white"
+              >
+                <ShoppingCart className="h-4 w-4 mr-2" />
+                Buat Pesanan
+              </Button>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

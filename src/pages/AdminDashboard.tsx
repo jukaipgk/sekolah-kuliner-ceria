@@ -1,31 +1,18 @@
 
 import { useAuth } from "@/hooks/useAuth";
+import { useUserRole } from "@/hooks/useUserRole";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AdminOrdersTable } from "@/components/AdminOrdersTable";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { UtensilsCrossed, LogOut, ShoppingBag, Users, DollarSign, Clock } from "lucide-react";
-import { Navigate } from "react-router-dom";
+import { UtensilsCrossed, LogOut, ShoppingBag, Users, DollarSign, Clock, Home } from "lucide-react";
+import { Navigate, useNavigate } from "react-router-dom";
 
 const AdminDashboard = () => {
   const { user, signOut } = useAuth();
-
-  // Check if user has admin or cashier role
-  const { data: userRole, isLoading: roleLoading } = useQuery({
-    queryKey: ['user-role'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', user!.id)
-        .single();
-      
-      if (error) throw error;
-      return data.role;
-    },
-    enabled: !!user,
-  });
+  const { data: userRole, isLoading: roleLoading } = useUserRole();
+  const navigate = useNavigate();
 
   // Fetch dashboard statistics
   const { data: stats, isLoading: statsLoading } = useQuery({
@@ -91,10 +78,21 @@ const AdminDashboard = () => {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-2">
               <UtensilsCrossed className="h-8 w-8 text-orange-500" />
-              <span className="text-xl font-bold text-gray-900">Admin Dashboard</span>
+              <span className="text-xl font-bold text-gray-900">
+                {userRole === 'admin' ? 'Admin Dashboard' : 'Kasir Dashboard'}
+              </span>
             </div>
             
             <div className="flex items-center space-x-4">
+              <Button
+                onClick={() => navigate('/dashboard')}
+                variant="ghost"
+                size="sm"
+                className="text-orange-600 hover:bg-orange-50"
+              >
+                <Home className="h-4 w-4 mr-2" />
+                Dashboard Utama
+              </Button>
               <span className="text-sm text-gray-600">
                 {userRole === 'admin' ? 'Administrator' : 'Kasir'} - {user?.user_metadata?.full_name || user?.email}
               </span>
@@ -114,8 +112,14 @@ const AdminDashboard = () => {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard Admin</h1>
-          <p className="text-gray-600">Kelola pesanan dan monitoring sistem</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            Dashboard {userRole === 'admin' ? 'Admin' : 'Kasir'}
+          </h1>
+          <p className="text-gray-600">
+            {userRole === 'admin' 
+              ? 'Kelola pesanan dan monitoring sistem' 
+              : 'Kelola pesanan dan pembayaran'}
+          </p>
         </div>
 
         {/* Statistics Cards */}

@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useCart } from "@/hooks/useCart";
@@ -10,14 +11,15 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { UtensilsCrossed, LogOut, ArrowLeft, CreditCard, Banknote } from "lucide-react";
+import { DashboardNavigation } from "@/components/DashboardNavigation";
+import { ArrowLeft, CreditCard, Banknote } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Child = Tables<"children">;
 
 const Order = () => {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { cart, getTotalPrice, clearCart } = useCart();
@@ -184,51 +186,30 @@ const Order = () => {
 
   if (childrenLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-green-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-orange-500"></div>
+      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-green-50">
+        <DashboardNavigation />
+        <div className="flex items-center justify-center py-20">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-orange-500"></div>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-green-50">
-      <header className="bg-white/80 backdrop-blur-md border-b border-orange-100 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-2">
-              <UtensilsCrossed className="h-8 w-8 text-orange-500" />
-              <span className="text-xl font-bold text-gray-900">Sekolah Kuliner Ceria</span>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              <Button
-                onClick={() => window.location.href = '/menu'}
-                variant="ghost"
-                size="sm"
-                className="text-orange-600 hover:bg-orange-50"
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Kembali ke Menu
-              </Button>
-              <span className="text-sm text-gray-600">
-                {user?.user_metadata?.full_name || user?.email}
-              </span>
-              <Button
-                onClick={signOut}
-                variant="outline"
-                size="sm"
-                className="border-orange-200 text-orange-600 hover:bg-orange-50"
-              >
-                <LogOut className="h-4 w-4 mr-2" />
-                Keluar
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <DashboardNavigation />
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
+          <Button
+            onClick={() => window.location.href = '/menu'}
+            variant="ghost"
+            size="sm"
+            className="text-orange-600 hover:bg-orange-50 mb-4"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Kembali ke Menu
+          </Button>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Buat Pesanan</h1>
           <p className="text-gray-600">Lengkapi informasi pesanan untuk anak Anda</p>
         </div>

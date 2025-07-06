@@ -1,185 +1,320 @@
 
 import { useAuth } from "@/hooks/useAuth";
+import { useUserRole } from "@/hooks/useUserRole";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { UtensilsCrossed, Users, ShoppingCart, ClipboardList, LogOut } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { DashboardNavigation } from "@/components/DashboardNavigation";
+import { ShoppingBag, Users, DollarSign, Clock, Plus, Eye, Settings } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const Dashboard = () => {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
+  const { data: userRole, isLoading: roleLoading } = useUserRole();
+  const navigate = useNavigate();
 
-  // Fetch children count
-  const { data: childrenCount } = useQuery({
-    queryKey: ['children-count'],
+  // Fetch user's children
+  const { data: children, isLoading: childrenLoading } = useQuery({
+    queryKey: ['children'],
     queryFn: async () => {
-      const { count, error } = await supabase
+      const { data, error } = await supabase
         .from('children')
-        .select('*', { count: 'exact', head: true });
+        .select('*')
+        .eq('parent_id', user!.id)
+        .order('name');
       
       if (error) throw error;
-      return count || 0;
+      return data;
     },
+    enabled: !!user,
   });
 
-  // Fetch orders count
-  const { data: ordersCount } = useQuery({
-    queryKey: ['orders-count'],
+  // Fetch recent orders
+  const { data: recentOrders, isLoading: ordersLoading } = useQuery({
+    queryKey: ['recent-orders'],
     queryFn: async () => {
-      const { count, error } = await supabase
+      const { data, error } = await supabase
         .from('orders')
-        .select('*', { count: 'exact', head: true });
+        .select(`
+          *,
+          children:child_id (
+            name,
+            class_name
+          )
+        `)
+        .eq('parent_id', user!.id)
+        .order('created_at', { ascending: false })
+        .limit(5);
       
       if (error) throw error;
-      return count || 0;
+      return data;
     },
+    enabled: !!user,
   });
+
+  // Get dashboard stats
+  const { data: stats } = useQuery({
+    queryKey: ['dashboard-stats'],
+    queryFn: async () => {
+      const { data: orders, error } = await supabase
+        .from('orders')
+        .select('total_amount, status')
+        .eq('parent_id', user!.id);
+      
+      if (error) throw error;
+
+      const totalOrders = orders.length;
+      const pendingOrders = orders.filter(o => o.status === 'pending').length;
+      const totalSpent = orders.reduce((sum, order) => sum + order.total_amount, 0);
+      
+      return {
+        totalOrders,
+        pendingOrders,
+        totalSpent,
+        completedOrders: totalOrders - pendingOrders
+      };
+    },
+    enabled: !!user,
+  });
+
+  if (roleLoading || childrenLoading || ordersLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-green-50">
+        <DashboardNavigation />
+        <div className="flex items-center justify-center py-20">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-orange-500"></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-green-50">
-      <header className="bg-white/80 backdrop-blur-md border-b border-orange-100 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-2">
-              <UtensilsCrossed className="h-8 w-8 text-orange-500" />
-              <span className="text-xl font-bold text-gray-900">Sekolah Kuliner Ceria</span>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">
-                {user?.user_metadata?.full_name || user?.email}
-              </span>
-              <Button
-                onClick={signOut}
-                variant="outline"
-                size="sm"
-                className="border-orange-200 text-orange-600 hover:bg-orange-50"
-              >
-                <LogOut className="h-4 w-4 mr-2" />
-                Keluar
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <DashboardNavigation />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Selamat Datang di Sekolah Kuliner Ceria
+            Selamat Datang, {user?.user_metadata?.full_name || user?.email}!
           </h1>
           <p className="text-gray-600">
-            Kelola pesanan makanan untuk anak-anak Anda dengan mudah
+            {userRole === 'admin' ? 'Dashboard Administrator' : 
+             userRole === 'cashier' ? 'Dashboard Kasir' : 
+             'Kelola pesanan makanan untuk anak-anak Anda'}
           </p>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Anak</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{childrenCount}</div>
-              <p className="text-xs text-muted-foreground">
-                Anak yang terdaftar
-              </p>
-            </CardContent>
-          </Card>
+        {/* Quick Actions for Admin/Cashier */}
+        {(userRole === 'admin' || userRole === 'cashier') && (
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">Panel {userRole === 'admin' ? 'Admin' : 'Kasir'}</h2>
+              <Button
+                onClick={() => navigate('/admin')}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                <Settings className="h-4 w-4 mr-2" />
+                Buka Panel {userRole === 'admin' ? 'Admin' : 'Kasir'}
+              </Button>
+            </div>
+            <Card className="bg-green-50 border-green-200">
+              <CardContent className="p-6">
+                <p className="text-green-800">
+                  Anda memiliki akses {userRole === 'admin' ? 'administrator' : 'kasir'}. 
+                  Gunakan panel khusus untuk mengelola pesanan dan sistem.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Pesanan</CardTitle>
-              <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+              <ShoppingBag className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{ordersCount}</div>
+              <div className="text-2xl font-bold">{stats?.totalOrders || 0}</div>
               <p className="text-xs text-muted-foreground">
-                Pesanan yang dibuat
+                Semua pesanan Anda
               </p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Status</CardTitle>
-              <ClipboardList className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Pesanan Pending</CardTitle>
+              <Clock className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">Aktif</div>
+              <div className="text-2xl font-bold text-orange-600">{stats?.pendingOrders || 0}</div>
               <p className="text-xs text-muted-foreground">
-                Sistem berjalan normal
+                Menunggu konfirmasi
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Data Anak</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{children?.length || 0}</div>
+              <p className="text-xs text-muted-foreground">
+                Anak terdaftar
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Pengeluaran</CardTitle>
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">
+                Rp {(stats?.totalSpent || 0).toLocaleString('id-ID')}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Total yang dihabiskan
               </p>
             </CardContent>
           </Card>
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer" 
-                onClick={() => window.location.href = '/children'}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+          <Card>
             <CardHeader>
-              <div className="flex items-center space-x-2">
-                <Users className="h-6 w-6 text-orange-500" />
-                <CardTitle>Kelola Anak</CardTitle>
-              </div>
+              <CardTitle>Aksi Cepat</CardTitle>
+              <CardDescription>Tindakan yang sering dilakukan</CardDescription>
             </CardHeader>
-            <CardContent>
-              <CardDescription>
-                Tambah, edit, atau hapus data anak-anak Anda
-              </CardDescription>
-              <Button 
-                className="w-full mt-4 bg-orange-500 hover:bg-orange-600 text-white"
-                onClick={() => window.location.href = '/children'}
+            <CardContent className="space-y-4">
+              <Button
+                onClick={() => navigate('/menu')}
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white"
               >
-                Kelola Anak
+                <ShoppingBag className="h-4 w-4 mr-2" />
+                Pesan Makanan
+              </Button>
+              <Button
+                onClick={() => navigate('/children')}
+                variant="outline"
+                className="w-full border-orange-200 text-orange-600 hover:bg-orange-50"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Tambah Data Anak
+              </Button>
+              <Button
+                onClick={() => navigate('/order-history')}
+                variant="outline"
+                className="w-full border-orange-200 text-orange-600 hover:bg-orange-50"
+              >
+                <Eye className="h-4 w-4 mr-2" />
+                Lihat Riwayat Pesanan
               </Button>
             </CardContent>
           </Card>
 
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => window.location.href = '/menu'}>
+          {/* Children List */}
+          <Card>
             <CardHeader>
-              <div className="flex items-center space-x-2">
-                <UtensilsCrossed className="h-6 w-6 text-green-500" />
-                <CardTitle>Lihat Menu</CardTitle>
-              </div>
+              <CardTitle>Data Anak</CardTitle>
+              <CardDescription>
+                {children && children.length > 0 
+                  ? "Anak-anak yang terdaftar" 
+                  : "Belum ada data anak"}
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <CardDescription>
-                Jelajahi menu makanan dan buat pesanan baru
-              </CardDescription>
-              <Button 
-                className="w-full mt-4 bg-green-500 hover:bg-green-600 text-white"
-                onClick={() => window.location.href = '/menu'}
-              >
-                Lihat Menu
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => window.location.href = '/order-history'}>
-            <CardHeader>
-              <div className="flex items-center space-x-2">
-                <ClipboardList className="h-6 w-6 text-blue-500" />
-                <CardTitle>Riwayat Pesanan</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <CardDescription>
-                Lihat riwayat pesanan dan status pengiriman
-              </CardDescription>
-              <Button 
-                className="w-full mt-4 bg-blue-500 hover:bg-blue-600 text-white"
-                onClick={() => window.location.href = '/order-history'}
-              >
-                Lihat Riwayat
-              </Button>
+              {children && children.length > 0 ? (
+                <div className="space-y-3">
+                  {children.slice(0, 3).map((child) => (
+                    <div key={child.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                      <div>
+                        <p className="font-medium">{child.name}</p>
+                        <p className="text-sm text-gray-600">Kelas {child.class_name}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {children.length > 3 && (
+                    <Button
+                      onClick={() => navigate('/children')}
+                      variant="ghost"
+                      size="sm"
+                      className="w-full text-orange-600 hover:bg-orange-50"
+                    >
+                      Lihat semua ({children.length} anak)
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-gray-600 mb-4">Belum ada data anak</p>
+                  <Button
+                    onClick={() => navigate('/children')}
+                    size="sm"
+                    className="bg-orange-500 hover:bg-orange-600 text-white"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Tambah Anak
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
+
+        {/* Recent Orders */}
+        {recentOrders && recentOrders.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Pesanan Terbaru</CardTitle>
+              <CardDescription>5 pesanan terakhir Anda</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {recentOrders.map((order) => (
+                  <div key={order.id} className="flex justify-between items-center p-4 border rounded-lg">
+                    <div>
+                      <p className="font-medium">Pesanan #{order.id.slice(0, 8)}</p>
+                      <p className="text-sm text-gray-600">
+                        {order.children?.name} - Kelas {order.children?.class_name}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        {new Date(order.created_at).toLocaleDateString('id-ID')}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-orange-600">
+                        Rp {order.total_amount.toLocaleString('id-ID')}
+                      </p>
+                      <span className={`text-xs px-2 py-1 rounded-full ${
+                        order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                        order.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
+                        order.status === 'preparing' ? 'bg-purple-100 text-purple-800' :
+                        order.status === 'ready' ? 'bg-green-100 text-green-800' :
+                        order.status === 'delivered' ? 'bg-gray-100 text-gray-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {order.status === 'pending' ? 'Menunggu' :
+                         order.status === 'confirmed' ? 'Dikonfirmasi' :
+                         order.status === 'preparing' ? 'Diproses' :
+                         order.status === 'ready' ? 'Siap' :
+                         order.status === 'delivered' ? 'Dikirim' :
+                         'Dibatalkan'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </main>
     </div>
   );
