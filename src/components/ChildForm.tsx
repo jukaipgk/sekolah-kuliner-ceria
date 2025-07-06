@@ -1,13 +1,13 @@
 
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Child = Tables<"children">;
@@ -21,21 +21,28 @@ interface ChildFormProps {
 export const ChildForm = ({ child, onSuccess, onCancel }: ChildFormProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   
   const [formData, setFormData] = useState({
-    name: child?.name || '',
-    class_name: child?.class_name || '',
-    student_id: child?.student_id || '',
-    allergies: child?.allergies || '',
+    name: child?.name || "",
+    student_id: child?.student_id || "",
+    class_name: child?.class_name || "",
+    allergies: child?.allergies || "",
   });
 
-  const mutation = useMutation({
+  // Create/Update child mutation
+  const saveChildMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
       if (child) {
         // Update existing child
         const { error } = await supabase
           .from('children')
-          .update(data)
+          .update({
+            name: data.name,
+            student_id: data.student_id,
+            class_name: data.class_name,
+            allergies: data.allergies || null,
+          })
           .eq('id', child.id);
         
         if (error) throw error;
@@ -44,23 +51,27 @@ export const ChildForm = ({ child, onSuccess, onCancel }: ChildFormProps) => {
         const { error } = await supabase
           .from('children')
           .insert([{
-            ...data,
             parent_id: user!.id,
+            name: data.name,
+            student_id: data.student_id,
+            class_name: data.class_name,
+            allergies: data.allergies || null,
           }]);
         
         if (error) throw error;
       }
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['children'] });
       toast({
         title: "Berhasil!",
-        description: child ? "Data anak berhasil diperbarui." : "Data anak berhasil ditambahkan.",
+        description: child ? "Data anak berhasil diperbarui." : "Anak baru berhasil ditambahkan.",
       });
       onSuccess();
     },
     onError: (error: any) => {
       toast({
-        title: "Gagal menyimpan",
+        title: child ? "Gagal memperbarui" : "Gagal menambahkan",
         description: error.message,
         variant: "destructive",
       });
@@ -69,10 +80,10 @@ export const ChildForm = ({ child, onSuccess, onCancel }: ChildFormProps) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    mutation.mutate(formData);
+    saveChildMutation.mutate(formData);
   };
 
-  const handleChange = (field: keyof typeof formData, value: string) => {
+  const handleInputChange = (field: keyof typeof formData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -85,61 +96,64 @@ export const ChildForm = ({ child, onSuccess, onCancel }: ChildFormProps) => {
             id="name"
             type="text"
             value={formData.name}
-            onChange={(e) => handleChange('name', e.target.value)}
-            required
+            onChange={(e) => handleInputChange('name', e.target.value)}
             placeholder="Masukkan nama lengkap anak"
+            required
           />
         </div>
         
         <div className="space-y-2">
-          <Label htmlFor="class_name">Kelas</Label>
+          <Label htmlFor="student_id">NIS/ID Siswa</Label>
           <Input
-            id="class_name"
+            id="student_id"
             type="text"
-            value={formData.class_name}
-            onChange={(e) => handleChange('class_name', e.target.value)}
+            value={formData.student_id}
+            onChange={(e) => handleInputChange('student_id', e.target.value)}
+            placeholder="Masukkan NIS atau ID siswa"
             required
-            placeholder="Contoh: 1A, 2B, 3C"
           />
         </div>
       </div>
-      
+
       <div className="space-y-2">
-        <Label htmlFor="student_id">Nomor Induk Siswa (NIS)</Label>
+        <Label htmlFor="class_name">Kelas</Label>
         <Input
-          id="student_id"
+          id="class_name"
           type="text"
-          value={formData.student_id}
-          onChange={(e) => handleChange('student_id', e.target.value)}
+          value={formData.class_name}
+          onChange={(e) => handleInputChange('class_name', e.target.value)}
+          placeholder="Contoh: 5A, 6B, dll."
           required
-          placeholder="Masukkan nomor induk siswa"
         />
       </div>
-      
+
       <div className="space-y-2">
-        <Label htmlFor="allergies">Alergi Makanan (Opsional)</Label>
+        <Label htmlFor="allergies">Alergi (Opsional)</Label>
         <Textarea
           id="allergies"
           value={formData.allergies}
-          onChange={(e) => handleChange('allergies', e.target.value)}
-          placeholder="Masukkan informasi alergi makanan jika ada"
+          onChange={(e) => handleInputChange('allergies', e.target.value)}
+          placeholder="Sebutkan alergi makanan jika ada, contoh: kacang, seafood, dll."
           rows={3}
         />
       </div>
-      
-      <div className="flex space-x-2 pt-4">
+
+      <div className="flex space-x-4 pt-4">
         <Button
           type="submit"
           className="bg-orange-500 hover:bg-orange-600 text-white"
-          disabled={mutation.isPending}
+          disabled={saveChildMutation.isPending}
         >
-          {mutation.isPending ? "Menyimpan..." : (child ? "Perbarui" : "Simpan")}
+          {saveChildMutation.isPending 
+            ? (child ? "Memperbarui..." : "Menambahkan...") 
+            : (child ? "Perbarui Data" : "Tambah Anak")
+          }
         </Button>
         <Button
           type="button"
           variant="outline"
           onClick={onCancel}
-          disabled={mutation.isPending}
+          disabled={saveChildMutation.isPending}
         >
           Batal
         </Button>
