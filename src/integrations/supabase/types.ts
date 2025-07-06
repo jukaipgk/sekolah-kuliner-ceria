@@ -163,9 +163,13 @@ export type Database = {
           created_at: string
           delivery_date: string
           id: string
+          midtrans_payment_url: string | null
+          midtrans_transaction_id: string | null
           notes: string | null
           order_date: string
           parent_id: string
+          payment_method: string | null
+          payment_status: string | null
           status: string
           total_amount: number
           updated_at: string
@@ -175,9 +179,13 @@ export type Database = {
           created_at?: string
           delivery_date: string
           id?: string
+          midtrans_payment_url?: string | null
+          midtrans_transaction_id?: string | null
           notes?: string | null
           order_date: string
           parent_id: string
+          payment_method?: string | null
+          payment_status?: string | null
           status?: string
           total_amount: number
           updated_at?: string
@@ -187,9 +195,13 @@ export type Database = {
           created_at?: string
           delivery_date?: string
           id?: string
+          midtrans_payment_url?: string | null
+          midtrans_transaction_id?: string | null
           notes?: string | null
           order_date?: string
           parent_id?: string
+          payment_method?: string | null
+          payment_status?: string | null
           status?: string
           total_amount?: number
           updated_at?: string
@@ -207,6 +219,56 @@ export type Database = {
             columns: ["parent_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payments: {
+        Row: {
+          created_at: string
+          gross_amount: number
+          id: string
+          midtrans_order_id: string
+          midtrans_transaction_id: string
+          order_id: string
+          paid_at: string | null
+          payment_method: string
+          payment_status: string
+          payment_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          gross_amount: number
+          id?: string
+          midtrans_order_id: string
+          midtrans_transaction_id: string
+          order_id: string
+          paid_at?: string | null
+          payment_method: string
+          payment_status?: string
+          payment_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          gross_amount?: number
+          id?: string
+          midtrans_order_id?: string
+          midtrans_transaction_id?: string
+          order_id?: string
+          paid_at?: string | null
+          payment_method?: string
+          payment_status?: string
+          payment_url?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
         ]
@@ -235,15 +297,46 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_role: {
+        Args: { user_id: string }
+        Returns: Database["public"]["Enums"]["app_role"]
+      }
+      has_role: {
+        Args: {
+          _user_id: string
+          _role: Database["public"]["Enums"]["app_role"]
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "parent" | "admin" | "cashier"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -358,6 +451,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["parent", "admin", "cashier"],
+    },
   },
 } as const

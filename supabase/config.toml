@@ -1,1 +1,5 @@
+
 project_id = "biqdopknsjihuyhiybwa"
+
+[functions.create-midtrans-payment]
+verify_jwt = true

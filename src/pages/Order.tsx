@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UtensilsCrossed, LogOut, ArrowLeft } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { UtensilsCrossed, LogOut, ArrowLeft, CreditCard, Banknote } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -24,6 +25,7 @@ const Order = () => {
   const [selectedChild, setSelectedChild] = useState<string>("");
   const [deliveryDate, setDeliveryDate] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
+  const [paymentMethod, setPaymentMethod] = useState<string>("cash");
 
   // Fetch children data
   const { data: children, isLoading: childrenLoading } = useQuery({
@@ -46,6 +48,7 @@ const Order = () => {
       deliveryDate: string;
       notes: string;
       totalAmount: number;
+      paymentMethod: string;
       items: Array<{ menuItemId: string; quantity: number; price: number }>;
     }) => {
       // Create the order
@@ -58,7 +61,9 @@ const Order = () => {
           order_date: new Date().toISOString().split('T')[0],
           total_amount: orderData.totalAmount,
           notes: orderData.notes,
-          status: 'pending'
+          status: 'pending',
+          payment_method: orderData.paymentMethod,
+          payment_status: orderData.paymentMethod === 'cash' ? 'pending' : 'pending'
         }])
         .select()
         .single();
@@ -79,17 +84,59 @@ const Order = () => {
 
       if (itemsError) throw itemsError;
 
+      // If payment method is digital, create Midtrans payment
+      if (orderData.paymentMethod === 'digital') {
+        const { data: paymentData, error: paymentError } = await supabase.functions.invoke('create-midtrans-payment', {
+          body: {
+            orderId: order.id,
+            amount: orderData.totalAmount,
+            customerDetails: {
+              first_name: user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Customer',
+              email: user?.email
+            }
+          }
+        });
+
+        if (paymentError) {
+          console.error('Payment creation error:', paymentError);
+          throw new Error('Gagal membuat link pembayaran');
+        }
+
+        // Update order with payment URL
+        await supabase
+          .from('orders')
+          .update({
+            midtrans_payment_url: paymentData.payment_url,
+            midtrans_transaction_id: paymentData.transaction_id
+          })
+          .eq('id', order.id);
+
+        return { ...order, payment_url: paymentData.payment_url };
+      }
+
       return order;
     },
-    onSuccess: () => {
+    onSuccess: (order) => {
       toast({
         title: "Pesanan berhasil dibuat!",
-        description: "Pesanan Anda telah diterima dan sedang diproses.",
+        description: paymentMethod === 'digital' 
+          ? "Silakan lanjutkan dengan pembayaran digital." 
+          : "Pesanan Anda telah diterima dan sedang diproses.",
       });
+      
       // Clear cart
       clearCart();
-      // Redirect to dashboard
-      window.location.href = '/dashboard';
+      
+      // If digital payment, redirect to payment URL
+      if (paymentMethod === 'digital' && order.payment_url) {
+        window.open(order.payment_url, '_blank');
+        setTimeout(() => {
+          window.location.href = '/order-history';
+        }, 2000);
+      } else {
+        // Redirect to dashboard for cash payment
+        window.location.href = '/dashboard';
+      }
     },
     onError: (error: any) => {
       toast({
@@ -124,6 +171,7 @@ const Order = () => {
       deliveryDate,
       notes,
       totalAmount,
+      paymentMethod,
       items
     });
   };
@@ -269,6 +317,31 @@ const Order = () => {
                   <p className="text-sm text-gray-500">
                     Pesanan akan dikirim ke sekolah pada tanggal yang dipilih
                   </p>
+                </div>
+
+                <div className="space-y-3">
+                  <Label>Metode Pembayaran</Label>
+                  <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod}>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="cash" id="cash" />
+                      <Label htmlFor="cash" className="flex items-center cursor-pointer">
+                        <Banknote className="h-4 w-4 mr-2" />
+                        Bayar Tunai di Sekolah
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="digital" id="digital" />
+                      <Label htmlFor="digital" className="flex items-center cursor-pointer">
+                        <CreditCard className="h-4 w-4 mr-2" />
+                        Pembayaran Digital (Transfer Bank, E-Wallet, dll)
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                  {paymentMethod === 'digital' && (
+                    <p className="text-sm text-blue-600 bg-blue-50 p-2 rounded">
+                      Anda akan diarahkan ke halaman pembayaran setelah pesanan dibuat
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
