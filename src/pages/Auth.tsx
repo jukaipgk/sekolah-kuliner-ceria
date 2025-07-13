@@ -1,51 +1,49 @@
 
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { UtensilsCrossed, AlertCircle } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { toast } from '@/components/ui/use-toast';
+import { Utensils } from 'lucide-react';
 
 const Auth = () => {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
+  const { signIn, signUp } = useAuth();
+  const navigate = useNavigate();
 
-  const handleSignUp = async (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
+    
+    const formData = new FormData(e.currentTarget);
+    const email = formData.get('email') as string;
+    const password = formData.get('password') as string;
 
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`,
-          data: {
-            full_name: fullName,
-            phone: phone,
-          },
-        },
-      });
-
-      if (error) throw error;
-
-      if (data.user) {
+      const { error } = await signIn(email, password);
+      
+      if (error) {
         toast({
-          title: "Pendaftaran Berhasil!",
-          description: "Silakan cek email Anda untuk konfirmasi akun.",
+          title: "Error",
+          description: error.message || "Login gagal",
+          variant: "destructive",
         });
+      } else {
+        toast({
+          title: "Berhasil!",
+          description: "Login berhasil. Selamat datang!",
+        });
+        navigate('/');
       }
-    } catch (error: any) {
+    } catch (error) {
+      console.error('Login error:', error);
       toast({
-        title: "Pendaftaran Gagal",
-        description: error.message,
+        title: "Error",
+        description: "Terjadi kesalahan saat login",
         variant: "destructive",
       });
     } finally {
@@ -53,29 +51,51 @@ const Auth = () => {
     }
   };
 
-  const handleSignIn = async (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
+    
+    const formData = new FormData(e.currentTarget);
+    const email = formData.get('email') as string;
+    const password = formData.get('password') as string;
+    const fullName = formData.get('fullName') as string;
+    const phone = formData.get('phone') as string;
+    const address = formData.get('address') as string;
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      // Always register as 'parent' role - no selection needed
+      const { error } = await signUp(email, password, {
+        full_name: fullName,
+        phone: phone,
+        address: address,
+        role: 'parent'
       });
-
-      if (error) throw error;
-
-      if (data.user) {
+      
+      if (error) {
+        if (error.message.includes('already registered')) {
+          toast({
+            title: "Error",
+            description: "Email sudah terdaftar. Silakan login atau gunakan email lain.",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Error",
+            description: error.message || "Registrasi gagal",
+            variant: "destructive",
+          });
+        }
+      } else {
         toast({
-          title: "Login Berhasil!",
-          description: "Selamat datang kembali!",
+          title: "Berhasil!",
+          description: "Akun berhasil dibuat. Silakan cek email untuk verifikasi.",
         });
-        window.location.href = "/";
       }
-    } catch (error: any) {
+    } catch (error) {
+      console.error('Registration error:', error);
       toast({
-        title: "Login Gagal",
-        description: error.message,
+        title: "Error",
+        description: "Terjadi kesalahan saat registrasi",
         variant: "destructive",
       });
     } finally {
@@ -84,116 +104,120 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-green-50 flex items-center justify-center p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-red-50 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="flex items-center justify-center space-x-2 mb-2">
-            <UtensilsCrossed className="h-8 w-8 text-orange-500" />
-            <span className="text-xl font-bold text-gray-900">Sekolah Kuliner Ceria</span>
+          <div className="flex justify-center mb-4">
+            <div className="bg-gradient-to-r from-orange-500 to-red-500 p-3 rounded-full">
+              <Utensils className="h-8 w-8 text-white" />
+            </div>
           </div>
-          <CardTitle>Masuk ke Akun Anda</CardTitle>
-          <CardDescription>
-            Kelola pesanan makanan anak dengan mudah
+          <CardTitle className="text-2xl font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
+            FoodFlow
+          </CardTitle>
+          <CardDescription className="text-gray-600">
+            Platform pemesanan makanan untuk orang tua
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="signin" className="w-full">
+          <Tabs defaultValue="login" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="signin">Masuk</TabsTrigger>
-              <TabsTrigger value="signup">Daftar</TabsTrigger>
+              <TabsTrigger value="login">Login</TabsTrigger>
+              <TabsTrigger value="register">Daftar</TabsTrigger>
             </TabsList>
             
-            <TabsContent value="signin" className="space-y-4">
+            <TabsContent value="login">
               <form onSubmit={handleSignIn} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="signin-email">Email</Label>
-                  <Input
-                    id="signin-email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    placeholder="nama@email.com"
+                  <Label htmlFor="email">Email</Label>
+                  <Input 
+                    id="email" 
+                    name="email" 
+                    type="email" 
+                    required 
+                    placeholder="masukkan email"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="signin-password">Password</Label>
-                  <Input
-                    id="signin-password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    placeholder="Password Anda"
+                  <Label htmlFor="password">Password</Label>
+                  <Input 
+                    id="password" 
+                    name="password" 
+                    type="password" 
+                    required 
+                    placeholder="masukkan password"
                   />
                 </div>
-                <Button type="submit" className="w-full bg-orange-500 hover:bg-orange-600" disabled={isLoading}>
-                  {isLoading ? "Memproses..." : "Masuk"}
+                <Button 
+                  type="submit" 
+                  className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600"
+                  disabled={isLoading}
+                >
+                  {isLoading ? 'Loading...' : 'Login'}
                 </Button>
               </form>
             </TabsContent>
             
-            <TabsContent value="signup" className="space-y-4">
+            <TabsContent value="register">
               <form onSubmit={handleSignUp} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="signup-fullname">Nama Lengkap</Label>
-                  <Input
-                    id="signup-fullname"
-                    type="text"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    required
-                    placeholder="Nama lengkap Anda"
+                  <Label htmlFor="fullName">Nama Lengkap</Label>
+                  <Input 
+                    id="fullName" 
+                    name="fullName" 
+                    type="text" 
+                    required 
+                    placeholder="masukkan nama lengkap"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="signup-phone">Nomor Telepon</Label>
-                  <Input
-                    id="signup-phone"
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="08xxxxxxxxxx"
+                  <Label htmlFor="email">Email</Label>
+                  <Input 
+                    id="email" 
+                    name="email" 
+                    type="email" 
+                    required 
+                    placeholder="masukkan email"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="signup-email">Email</Label>
-                  <Input
-                    id="signup-email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    placeholder="nama@email.com"
+                  <Label htmlFor="phone">No. Telepon</Label>
+                  <Input 
+                    id="phone" 
+                    name="phone" 
+                    type="tel" 
+                    placeholder="masukkan no. telepon"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="signup-password">Password</Label>
-                  <Input
-                    id="signup-password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    placeholder="Minimal 6 karakter"
+                  <Label htmlFor="address">Alamat</Label>
+                  <Input 
+                    id="address" 
+                    name="address" 
+                    type="text" 
+                    placeholder="masukkan alamat"
                   />
                 </div>
-                <Button type="submit" className="w-full bg-orange-500 hover:bg-orange-600" disabled={isLoading}>
-                  {isLoading ? "Memproses..." : "Daftar"}
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <Input 
+                    id="password" 
+                    name="password" 
+                    type="password" 
+                    required 
+                    placeholder="masukkan password"
+                  />
+                </div>
+                <Button 
+                  type="submit" 
+                  className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600"
+                  disabled={isLoading}
+                >
+                  {isLoading ? 'Loading...' : 'Daftar'}
                 </Button>
               </form>
             </TabsContent>
           </Tabs>
-          
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-            <div className="flex items-start space-x-2">
-              <AlertCircle className="h-5 w-5 text-blue-500 mt-0.5" />
-              <div className="text-sm text-blue-700">
-                <p className="font-medium">Informasi Penting:</p>
-                <p>Setelah mendaftar, silakan cek email untuk konfirmasi akun. Pastikan email yang digunakan dapat diakses.</p>
-              </div>
-            </div>
-          </div>
         </CardContent>
       </Card>
     </div>
