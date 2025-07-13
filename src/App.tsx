@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Navbar } from '@/components/Navbar';
 import Index from '@/pages/Index';
 import Orders from '@/pages/Orders';
+import BatchOrders from '@/pages/BatchOrders';
 import Children from '@/pages/Children';
 import Auth from '@/pages/Auth';
 import AdminDashboard from '@/pages/admin/AdminDashboard';
@@ -98,6 +99,7 @@ function AppContent() {
                 {(userRole === 'parent' || !userRole) && (
                   <>
                     <Route path="/orders" element={<><Navbar /><Orders /></>} />
+                    <Route path="/batch-orders" element={<><Navbar /><BatchOrders /></>} />
                     <Route path="/children" element={<><Navbar /><Children /></>} />
                   </>
                 )}

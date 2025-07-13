@@ -2,14 +2,23 @@
 import { useOrders } from '@/hooks/useOrders';
 import { OrderFilters } from '@/components/orders/OrderFilters';
 import { EmptyOrdersState } from '@/components/orders/EmptyOrdersState';
+import { OrderSelectionCard } from '@/components/orders/OrderSelectionCard';
 import { usePagination } from '@/hooks/usePagination';
 import { PaginationControls } from '@/components/ui/pagination-controls';
-import { useState } from 'react';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useToast } from '@/hooks/use-toast';
+import { CreditCard, CheckSquare } from 'lucide-react';
 
 const Orders = () => {
   const { orders, loading, retryPayment } = useOrders();
   const [activeTab, setActiveTab] = useState('all');
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+  const navigate = useNavigate();
+  const { toast } = useToast();
 
   // Filter orders berdasarkan tab aktif
   const getFilteredOrders = () => {
@@ -28,6 +37,47 @@ const Orders = () => {
   };
 
   const filteredOrders = getFilteredOrders();
+
+  // Get pending orders for batch payment
+  const pendingOrders = orders.filter(order => order.payment_status === 'pending');
+
+  const handleSelectionChange = (orderId: string, selected: boolean) => {
+    setSelectedOrderIds(prev => 
+      selected 
+        ? [...prev, orderId]
+        : prev.filter(id => id !== orderId)
+    );
+  };
+
+  const handleSelectAll = () => {
+    const allPendingIds = pendingOrders.map(order => order.id);
+    setSelectedOrderIds(allPendingIds);
+    setIsSelectionMode(true);
+  };
+
+  const handleClearSelection = () => {
+    setSelectedOrderIds([]);
+    setIsSelectionMode(false);
+  };
+
+  const handleBatchPayment = () => {
+    if (selectedOrderIds.length === 0) {
+      toast({
+        title: "Pilih Pesanan",
+        description: "Silakan pilih minimal satu pesanan untuk dibayar",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const selectedOrders = orders.filter(order => selectedOrderIds.includes(order.id));
+    navigate('/batch-orders', { 
+      state: { 
+        selectedOrderIds, 
+        orders: selectedOrders 
+      } 
+    });
+  };
 
   // Pagination
   const {
@@ -66,25 +116,114 @@ const Orders = () => {
         <EmptyOrdersState />
       ) : (
         <>
-          <OrderFilters 
-            orders={paginatedOrders} 
-            onRetryPayment={retryPayment}
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-          />
+          {/* Batch Payment Controls */}
+          {pendingOrders.length > 0 && (
+            <Card className="mb-6">
+              <CardContent className="p-4">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                  <div>
+                    <h3 className="font-semibold text-lg">Pembayaran Batch</h3>
+                    <p className="text-sm text-gray-600">
+                      {pendingOrders.length} pesanan menunggu pembayaran
+                    </p>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-2">
+                    {!isSelectionMode ? (
+                      <>
+                        <Button
+                          variant="outline"
+                          onClick={() => setIsSelectionMode(true)}
+                          className="flex items-center"
+                        >
+                          <CheckSquare className="h-4 w-4 mr-2" />
+                          Pilih Pesanan
+                        </Button>
+                        <Button
+                          onClick={handleSelectAll}
+                          className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600"
+                        >
+                          <CreditCard className="h-4 w-4 mr-2" />
+                          Bayar Semua
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          variant="outline"
+                          onClick={handleClearSelection}
+                        >
+                          Batal
+                        </Button>
+                        <Button
+                          onClick={handleBatchPayment}
+                          disabled={selectedOrderIds.length === 0}
+                          className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600"
+                        >
+                          <CreditCard className="h-4 w-4 mr-2" />
+                          Bayar Terpilih ({selectedOrderIds.length})
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+                
+                {isSelectionMode && (
+                  <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                    <p className="text-sm text-blue-800">
+                      Mode pemilihan aktif. Pilih pesanan yang ingin dibayar sekaligus, 
+                      lalu klik "Bayar Terpilih" untuk melanjutkan ke pembayaran batch.
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {isSelectionMode ? (
+            <>
+              {/* Selection Mode View */}
+              <div className="mb-4">
+                <h2 className="text-lg font-semibold mb-2">
+                  Pilih Pesanan untuk Pembayaran Batch
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {pendingOrders.map((order) => (
+                    <OrderSelectionCard
+                      key={order.id}
+                      order={order}
+                      isSelected={selectedOrderIds.includes(order.id)}
+                      onSelectionChange={handleSelectionChange}
+                    />
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Normal View */}
+              <OrderFilters 
+                orders={paginatedOrders} 
+                onRetryPayment={retryPayment}
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+              />
+            </>
+          )}
           
-          {/* Pagination Controls */}
-          <PaginationControls
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onPageChange={goToPage}
-            canGoNext={canGoNext}
-            canGoPrev={canGoPrev}
-            startIndex={startIndex}
-            endIndex={endIndex}
-            totalItems={totalItems}
-            itemLabel="pesanan"
-          />
+          {!isSelectionMode && (
+            <PaginationControls
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={goToPage}
+              canGoNext={canGoNext}
+              canGoPrev={canGoPrev}
+              startIndex={startIndex}
+              endIndex={endIndex}
+              totalItems={totalItems}
+              itemLabel="pesanan"
+            />
+          )}
         </>
       )}
     </div>
