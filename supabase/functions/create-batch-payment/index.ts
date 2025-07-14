@@ -75,11 +75,6 @@ serve(async (req) => {
     if (allOrdersError) {
       console.error("Error fetching all user orders:", allOrdersError);
     } else {
-console.log("About to query orders with:", {
-  orderIds,
-  userId: user.id,
-  status: 'pending'
-});
       console.log("All user orders:", allUserOrders);
     }
 
@@ -91,9 +86,6 @@ console.log("About to query orders with:", {
       .in('id', orderIds);
 
     if (requestedOrdersError) {
-console.log("User ID type:", typeof user.id, "Value:", user.id);
-console.log("Order IDs types:", orderIds.map(id => typeof id));
-console.log("Order IDs values:", orderIds);
       console.error("Error fetching requested orders:", requestedOrdersError);
     } else {
       console.log("Requested orders found:", requestedOrders);
