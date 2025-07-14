@@ -1,4 +1,5 @@
 
+
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
@@ -26,7 +27,7 @@ serve(async (req) => {
     }
     
     const { orderIds, batchId, totalAmount } = requestBody;
-    console.log("Parsed request:", { orderIds, batchId, totalAmount });
+    console.log("Parsed request:", { orderIds, batchId, totalAmount, orderIdsType: typeof orderIds, orderIdsLength: orderIds?.length });
 
     // Create Supabase client
     const supabaseClient = createClient(
@@ -63,6 +64,32 @@ serve(async (req) => {
       throw new Error("Batch ID and total amount are required");
     }
 
+    // First, let's check what orders exist for this user
+    console.log("Checking all orders for user:", user.id);
+    const { data: allUserOrders, error: allOrdersError } = await supabaseClient
+      .from('orders')
+      .select('id, payment_status, total_amount, child_name')
+      .eq('user_id', user.id);
+
+    if (allOrdersError) {
+      console.error("Error fetching all user orders:", allOrdersError);
+    } else {
+      console.log("All user orders:", allUserOrders);
+    }
+
+    // Now check the specific orders requested
+    console.log("Checking specific orders with IDs:", orderIds);
+    const { data: requestedOrders, error: requestedOrdersError } = await supabaseClient
+      .from('orders')
+      .select('id, payment_status, total_amount, child_name, user_id')
+      .in('id', orderIds);
+
+    if (requestedOrdersError) {
+      console.error("Error fetching requested orders:", requestedOrdersError);
+    } else {
+      console.log("Requested orders found:", requestedOrders);
+    }
+
     // Verify all orders belong to the user and are pending payment
     const { data: orders, error: ordersError } = await supabaseClient
       .from('orders')
@@ -77,8 +104,27 @@ serve(async (req) => {
     }
 
     console.log("Found orders:", orders?.length || 0, "out of", orderIds.length, "requested");
+    console.log("Orders details:", orders);
     
     if (!orders || orders.length === 0) {
+      // Let's provide more specific error information
+      const { data: ordersWithDifferentStatus, error: statusError } = await supabaseClient
+        .from('orders')
+        .select('id, payment_status, user_id')
+        .in('id', orderIds);
+        
+      if (!statusError && ordersWithDifferentStatus) {
+        console.log("Orders with any status:", ordersWithDifferentStatus);
+        const userOrders = ordersWithDifferentStatus.filter(o => o.user_id === user.id);
+        const nonPendingOrders = userOrders.filter(o => o.payment_status !== 'pending');
+        
+        if (userOrders.length === 0) {
+          throw new Error("None of the selected orders belong to your account");
+        } else if (nonPendingOrders.length > 0) {
+          throw new Error(`Some orders are not eligible for payment. Found ${nonPendingOrders.length} orders with status other than 'pending'`);
+        }
+      }
+      
       throw new Error("No eligible orders found for batch payment");
     }
 
@@ -240,3 +286,4 @@ serve(async (req) => {
     });
   }
 });
+
