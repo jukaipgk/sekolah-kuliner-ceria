@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -28,6 +29,7 @@ export default function BatchOrders() {
 
   useEffect(() => {
     if (!batchState?.orders || batchState.orders.length === 0) {
+      console.error('BatchOrders: No orders in state:', batchState);
       toast({
         title: "Error",
         description: "Tidak ada pesanan yang dipilih untuk batch payment",
@@ -37,33 +39,70 @@ export default function BatchOrders() {
       return;
     }
 
+    console.log('BatchOrders: Received orders:', batchState.orders);
     setOrders(batchState.orders);
     // Generate batch ID
     const newBatchId = `BATCH_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     setBatchId(newBatchId);
+    console.log('BatchOrders: Generated batch ID:', newBatchId);
   }, [batchState, navigate, toast]);
 
   const totalAmount = orders.reduce((sum, order) => sum + order.total_amount, 0);
 
   const handleBatchPayment = async () => {
-    if (orders.length === 0) return;
+    if (orders.length === 0) {
+      console.error('BatchOrders: No orders to process');
+      return;
+    }
+
+    console.log('BatchOrders: Starting batch payment process');
+    console.log('BatchOrders: Orders to process:', orders.map(o => ({ id: o.id, payment_status: o.payment_status, total_amount: o.total_amount })));
 
     setLoading(true);
     try {
+      // Get current session to ensure we have proper auth
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session) {
+        console.error('BatchOrders: No valid session:', sessionError);
+        throw new Error('Tidak ada sesi yang valid. Silakan login kembali.');
+      }
+
+      console.log('BatchOrders: Session valid, user:', session.user.email);
+
+      const orderIds = orders.map(order => order.id);
+      const requestBody = {
+        orderIds: orderIds,
+        batchId: batchId,
+        totalAmount: totalAmount
+      };
+
+      console.log('BatchOrders: Calling create-batch-payment with:', requestBody);
+
       // Create batch payment using edge function
       const { data, error } = await supabase.functions.invoke('create-batch-payment', {
-        body: {
-          orderIds: orders.map(order => order.id),
-          batchId: batchId,
-          totalAmount: totalAmount
-        }
+        body: requestBody
       });
 
+      console.log('BatchOrders: Edge function response:', { data, error });
+
       if (error) {
-        throw error;
+        console.error('BatchOrders: Edge function error:', error);
+        throw new Error(error.message || 'Error calling batch payment function');
+      }
+
+      if (!data) {
+        console.error('BatchOrders: No response data from edge function');
+        throw new Error('Tidak ada respons dari server');
+      }
+
+      if (data.error) {
+        console.error('BatchOrders: Server returned error:', data.error);
+        throw new Error(data.error);
       }
 
       if (data?.snap_token) {
+        console.log('BatchOrders: Received snap_token, initializing Midtrans payment');
         // Use Midtrans Snap
         if (window.snap) {
           window.snap.pay(data.snap_token, {
@@ -96,16 +135,27 @@ export default function BatchOrders() {
             }
           });
         } else {
+          console.error('BatchOrders: Midtrans Snap not loaded');
           throw new Error('Midtrans Snap not loaded');
         }
       } else {
-        throw new Error('No snap token received');
+        console.error('BatchOrders: No snap token in response:', data);
+        throw new Error('No snap token received from server');
       }
     } catch (error: any) {
-      console.error('Batch payment error:', error);
+      console.error('BatchOrders: Batch payment error:', error);
+      console.error('BatchOrders: Error stack:', error.stack);
+      
+      let errorMessage = 'Gagal memproses pembayaran batch';
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+      
       toast({
         title: "Error",
-        description: error.message || "Gagal memproses pembayaran batch",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -165,6 +215,9 @@ export default function BatchOrders() {
                           Pengiriman: {formatDate(order.delivery_date)}
                         </p>
                       )}
+                      <p className="text-xs text-gray-500">
+                        Status: {order.payment_status} | ID: {order.id.substring(0, 8)}...
+                      </p>
                     </div>
                     <div className="text-right">
                       <p className="font-semibold text-orange-600">

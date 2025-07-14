@@ -61,7 +61,12 @@ const Orders = () => {
   };
 
   const handleBatchPayment = () => {
+    console.log('Orders: handleBatchPayment called');
+    console.log('Orders: selectedOrderIds:', selectedOrderIds);
+    console.log('Orders: Available orders:', orders.length);
+    
     if (selectedOrderIds.length === 0) {
+      console.error('Orders: No orders selected for batch payment');
       toast({
         title: "Pilih Pesanan",
         description: "Silakan pilih minimal satu pesanan untuk dibayar",
@@ -71,6 +76,35 @@ const Orders = () => {
     }
 
     const selectedOrders = orders.filter(order => selectedOrderIds.includes(order.id));
+    console.log('Orders: Selected orders for batch payment:', selectedOrders);
+    
+    if (selectedOrders.length === 0) {
+      console.error('Orders: No matching orders found for selected IDs');
+      toast({
+        title: "Error",
+        description: "Pesanan yang dipilih tidak ditemukan",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Verify all selected orders have pending payment status
+    const invalidOrders = selectedOrders.filter(order => order.payment_status !== 'pending');
+    if (invalidOrders.length > 0) {
+      console.error('Orders: Some selected orders are not pending:', invalidOrders);
+      toast({
+        title: "Error",
+        description: `${invalidOrders.length} pesanan tidak dapat dibayar karena statusnya bukan pending`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    console.log('Orders: Navigating to batch payment with state:', {
+      selectedOrderIds,
+      orders: selectedOrders
+    });
+
     navigate('/batch-orders', { 
       state: { 
         selectedOrderIds, 
@@ -126,6 +160,11 @@ const Orders = () => {
                     <p className="text-sm text-gray-600">
                       {pendingOrders.length} pesanan menunggu pembayaran
                     </p>
+                    {isSelectionMode && (
+                      <p className="text-xs text-blue-600 mt-1">
+                        {selectedOrderIds.length} pesanan dipilih
+                      </p>
+                    )}
                   </div>
                   
                   <div className="flex flex-wrap gap-2">
@@ -144,7 +183,7 @@ const Orders = () => {
                           className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600"
                         >
                           <CreditCard className="h-4 w-4 mr-2" />
-                          Bayar Semua
+                          Bayar Semua ({pendingOrders.length})
                         </Button>
                       </>
                     ) : (
