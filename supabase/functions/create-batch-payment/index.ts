@@ -16,6 +16,18 @@ serve(async (req) => {
   try {
     console.log("Create batch payment function called");
     
+    // Parse request body first to catch JSON parsing errors
+    let requestBody;
+    try {
+      requestBody = await req.json();
+    } catch (parseError) {
+      console.error("Error parsing request body:", parseError);
+      throw new Error("Invalid JSON in request body");
+    }
+    
+    const { orderIds, batchId, totalAmount } = requestBody;
+    console.log("Parsed request:", { orderIds, batchId, totalAmount });
+
     // Create Supabase client
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -23,18 +35,25 @@ serve(async (req) => {
     );
 
     // Get user from auth header
-    const authHeader = req.headers.get("Authorization")!;
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      throw new Error("No authorization header provided");
+    }
+    
     const token = authHeader.replace("Bearer ", "");
-    const { data } = await supabaseClient.auth.getUser(token);
+    const { data, error: authError } = await supabaseClient.auth.getUser(token);
+    
+    if (authError) {
+      console.error("Auth error:", authError);
+      throw new Error(`Authentication failed: ${authError.message}`);
+    }
+    
     const user = data.user;
-
     if (!user) {
       throw new Error("User not authenticated");
     }
 
-    // Parse request body
-    const { orderIds, batchId, totalAmount } = await req.json();
-    console.log("Batch payment request:", { orderIds, batchId, totalAmount, userId: user.id });
+    console.log("User authenticated:", user.id);
 
     if (!orderIds || !Array.isArray(orderIds) || orderIds.length === 0) {
       throw new Error("Invalid order IDs provided");
@@ -69,7 +88,6 @@ serve(async (req) => {
     
     if (missingOrderIds.length > 0) {
       console.log("Missing or ineligible orders:", missingOrderIds);
-      // Instead of throwing error, proceed with available orders
       console.log("Proceeding with available orders only");
     }
 
@@ -81,7 +99,6 @@ serve(async (req) => {
     const actualTotal = calculatedTotal;
 
     // Create Midtrans order ID with proper length validation
-    // Midtrans order_id max length is 50 characters
     const timestamp = Date.now();
     const randomSuffix = Math.random().toString(36).substr(2, 6);
     const midtransOrderId = `BATCH_${timestamp}_${randomSuffix}`.substr(0, 50);
@@ -101,43 +118,58 @@ serve(async (req) => {
         gross_amount: Math.round(actualTotal)
       },
       customer_details: {
-        email: user.email,
+        email: user.email || "customer@example.com",
         first_name: user.user_metadata?.full_name || "Customer"
       },
       item_details: orders.map((order, index) => ({
-        id: order.id.substr(0, 50), // Ensure item ID doesn't exceed Midtrans limits
+        id: order.id.toString().substr(0, 50),
         price: Math.round(order.total_amount),
         quantity: 1,
         name: `Pesanan ${order.child_name || `#${index + 1}`}`.substr(0, 50)
       })),
       callbacks: {
-        finish: `${req.headers.get("origin")}/orders`
+        finish: `${req.headers.get("origin") || "https://your-domain.com"}/orders`
       }
     };
 
     console.log("Midtrans payload:", JSON.stringify(midtransPayload, null, 2));
 
     // Call Midtrans Snap API
-    const midtransResponse = await fetch("https://app.sandbox.midtrans.com/snap/v1/transactions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        "Authorization": `Basic ${btoa(midtransServerKey + ":")}`
-      },
-      body: JSON.stringify(midtransPayload)
-    });
+    let midtransResponse;
+    try {
+      midtransResponse = await fetch("https://app.sandbox.midtrans.com/snap/v1/transactions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "Authorization": `Basic ${btoa(midtransServerKey + ":")}`
+        },
+        body: JSON.stringify(midtransPayload)
+      });
+    } catch (fetchError) {
+      console.error("Error calling Midtrans API:", fetchError);
+      throw new Error(`Failed to connect to Midtrans: ${fetchError.message}`);
+    }
 
     if (!midtransResponse.ok) {
       const errorText = await midtransResponse.text();
-      console.error("Midtrans API error:", errorText);
+      console.error("Midtrans API error response:", errorText);
+      console.error("Midtrans API status:", midtransResponse.status);
       throw new Error(`Midtrans API error: ${midtransResponse.status} - ${errorText}`);
     }
 
-    const midtransData = await midtransResponse.json();
+    let midtransData;
+    try {
+      midtransData = await midtransResponse.json();
+    } catch (jsonError) {
+      console.error("Error parsing Midtrans response:", jsonError);
+      throw new Error("Invalid response from Midtrans API");
+    }
+
     console.log("Midtrans response:", midtransData);
 
     if (!midtransData.token) {
+      console.error("No snap token in Midtrans response:", midtransData);
       throw new Error("No snap token received from Midtrans");
     }
 
@@ -160,7 +192,7 @@ serve(async (req) => {
 
     if (updateError) {
       console.error("Error updating orders:", updateError);
-      throw new Error("Failed to update orders with payment information");
+      throw new Error(`Failed to update orders with payment information: ${updateError.message}`);
     }
 
     // Create batch_orders entries for found orders only
@@ -176,6 +208,7 @@ serve(async (req) => {
     if (batchError) {
       console.error("Error creating batch orders:", batchError);
       // This is not critical, we can still proceed with payment
+      console.log("Continuing despite batch_orders error");
     }
 
     console.log("Batch payment created successfully");
@@ -193,11 +226,14 @@ serve(async (req) => {
       status: 200,
     });
 
-  } catch (error: any) {
+  } catch (error) {
     console.error("Batch payment error:", error);
+    console.error("Error stack:", error.stack);
+    
     return new Response(JSON.stringify({
       success: false,
-      error: error.message
+      error: error.message,
+      details: error.stack
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,
