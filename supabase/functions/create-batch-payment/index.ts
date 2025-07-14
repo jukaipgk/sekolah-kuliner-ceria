@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
@@ -53,18 +54,31 @@ serve(async (req) => {
 
     if (ordersError) {
       console.error("Error fetching orders:", ordersError);
-      throw new Error("Failed to fetch orders");
+      throw new Error(`Failed to fetch orders: ${ordersError.message}`);
     }
 
-    if (!orders || orders.length !== orderIds.length) {
-      throw new Error("Some orders not found or not eligible for payment");
+    console.log("Found orders:", orders?.length || 0, "out of", orderIds.length, "requested");
+    
+    if (!orders || orders.length === 0) {
+      throw new Error("No eligible orders found for batch payment");
     }
 
-    // Validate total amount
+    // Check if some orders are missing
+    const foundOrderIds = orders.map(order => order.id);
+    const missingOrderIds = orderIds.filter(id => !foundOrderIds.includes(id));
+    
+    if (missingOrderIds.length > 0) {
+      console.log("Missing or ineligible orders:", missingOrderIds);
+      // Instead of throwing error, proceed with available orders
+      console.log("Proceeding with available orders only");
+    }
+
+    // Validate total amount with found orders
     const calculatedTotal = orders.reduce((sum, order) => sum + order.total_amount, 0);
-    if (Math.abs(calculatedTotal - totalAmount) > 0.01) {
-      throw new Error("Total amount mismatch");
-    }
+    console.log("Calculated total:", calculatedTotal, "Expected total:", totalAmount);
+    
+    // Use calculated total from actual orders instead of provided total
+    const actualTotal = calculatedTotal;
 
     // Create Midtrans order ID with proper length validation
     // Midtrans order_id max length is 50 characters
@@ -84,7 +98,7 @@ serve(async (req) => {
     const midtransPayload = {
       transaction_details: {
         order_id: midtransOrderId,
-        gross_amount: Math.round(totalAmount)
+        gross_amount: Math.round(actualTotal)
       },
       customer_details: {
         email: user.email,
@@ -134,7 +148,7 @@ serve(async (req) => {
       { auth: { persistSession: false } }
     );
 
-    // Update orders with Midtrans data
+    // Update only the found orders with Midtrans data
     const { error: updateError } = await supabaseService
       .from('orders')
       .update({
@@ -142,15 +156,15 @@ serve(async (req) => {
         snap_token: midtransData.token,
         updated_at: new Date().toISOString()
       })
-      .in('id', orderIds);
+      .in('id', foundOrderIds);
 
     if (updateError) {
       console.error("Error updating orders:", updateError);
       throw new Error("Failed to update orders with payment information");
     }
 
-    // Create batch_orders entries
-    const batchOrdersData = orderIds.map(orderId => ({
+    // Create batch_orders entries for found orders only
+    const batchOrdersData = foundOrderIds.map(orderId => ({
       batch_id: batchId,
       order_id: orderId
     }));
@@ -171,7 +185,9 @@ serve(async (req) => {
       snap_token: midtransData.token,
       order_id: midtransOrderId,
       batch_id: batchId,
-      total_amount: totalAmount
+      total_amount: actualTotal,
+      processed_orders: foundOrderIds.length,
+      total_requested: orderIds.length
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
