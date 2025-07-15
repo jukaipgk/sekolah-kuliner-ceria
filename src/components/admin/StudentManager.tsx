@@ -3,14 +3,13 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Edit, Trash2, Upload, Download } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useUserRole } from '@/hooks/useUserRole';
+import StudentForm from './StudentManager/StudentForm';
+import StudentTable from './StudentManager/StudentTable';
+import ImportExportButtons from './StudentManager/ImportExportButtons';
 
 interface Student {
   id: string;
@@ -181,7 +180,6 @@ const StudentManager = () => {
       try {
         const csv = event.target?.result as string;
         const lines = csv.split('\n');
-        const headers = lines[0].split(',').map(h => h.trim());
         
         const studentsData = [];
         for (let i = 1; i < lines.length; i++) {
@@ -259,24 +257,10 @@ const StudentManager = () => {
         </div>
         
         <div className="flex gap-2">
-          <Button variant="outline" onClick={downloadTemplate}>
-            <Download className="h-4 w-4 mr-2" />
-            Download Template
-          </Button>
-          
-          <div>
-            <input
-              type="file"
-              accept=".csv"
-              onChange={handleImport}
-              className="hidden"
-              id="import-csv"
-            />
-            <Button variant="outline" onClick={() => document.getElementById('import-csv')?.click()}>
-              <Upload className="h-4 w-4 mr-2" />
-              Import CSV
-            </Button>
-          </div>
+          <ImportExportButtons 
+            onImport={handleImport}
+            onDownloadTemplate={downloadTemplate}
+          />
           
           <Dialog open={isDialogOpen} onOpenChange={(open) => {
             if (!open) resetForm();
@@ -298,66 +282,12 @@ const StudentManager = () => {
                 </DialogDescription>
               </DialogHeader>
               
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="nik">NIK *</Label>
-                  <Input
-                    id="nik"
-                    name="nik"
-                    required
-                    maxLength={16}
-                    defaultValue={editingStudent?.nik || ''}
-                    placeholder="16 digit NIK"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="nis">NIS</Label>
-                  <Input
-                    id="nis"
-                    name="nis"
-                    defaultValue={editingStudent?.nis || ''}
-                    placeholder="Nomor Induk Siswa (opsional)"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="name">Nama Siswa *</Label>
-                  <Input
-                    id="name"
-                    name="name"
-                    required
-                    defaultValue={editingStudent?.name || ''}
-                    placeholder="Masukkan nama lengkap siswa"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="className">Kelas</Label>
-                  <Select name="className" defaultValue={editingStudent?.class_name || ''}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pilih kelas" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">Tidak ada kelas</SelectItem>
-                      {classes.map((cls) => (
-                        <SelectItem key={cls.id} value={cls.name}>
-                          {cls.name} - {cls.description}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="flex justify-end space-x-2 pt-4">
-                  <Button type="button" variant="outline" onClick={resetForm}>
-                    Batal
-                  </Button>
-                  <Button type="submit" className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600">
-                    {editingStudent ? 'Perbarui' : 'Tambah'}
-                  </Button>
-                </div>
-              </form>
+              <StudentForm
+                student={editingStudent}
+                classes={classes}
+                onSubmit={handleSubmit}
+                onCancel={resetForm}
+              />
             </DialogContent>
           </Dialog>
         </div>
@@ -371,46 +301,11 @@ const StudentManager = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>NIK</TableHead>
-                <TableHead>NIS</TableHead>
-                <TableHead>Nama</TableHead>
-                <TableHead>Kelas</TableHead>
-                <TableHead>Aksi</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {students.map((student) => (
-                <TableRow key={student.id}>
-                  <TableCell className="font-mono">{student.nik}</TableCell>
-                  <TableCell>{student.nis || '-'}</TableCell>
-                  <TableCell className="font-medium">{student.name}</TableCell>
-                  <TableCell>{student.class_name || '-'}</TableCell>
-                  <TableCell>
-                    <div className="flex space-x-1">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleEdit(student)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleDelete(student.id)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <StudentTable
+            students={students}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+          />
         </CardContent>
       </Card>
     </div>

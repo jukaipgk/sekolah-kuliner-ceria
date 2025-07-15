@@ -2,16 +2,15 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Plus, Edit, Trash2, Users, Search } from 'lucide-react';
+import { Plus, Users } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { usePagination } from '@/hooks/usePagination';
 import { PaginationControls } from '@/components/ui/pagination-controls';
+import ChildForm from '@/components/children/ChildForm';
+import ChildCard from '@/components/children/ChildCard';
 
 interface Child {
   id: string;
@@ -40,7 +39,6 @@ interface Student {
 const Children = () => {
   const [children, setChildren] = useState<Child[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
-  const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingChild, setEditingChild] = useState<Child | null>(null);
@@ -68,7 +66,6 @@ const Children = () => {
     if (user) {
       fetchChildren();
       fetchClasses();
-      fetchStudents();
     }
   }, [user]);
 
@@ -106,20 +103,6 @@ const Children = () => {
       setClasses(data || []);
     } catch (error) {
       console.error('Error fetching classes:', error);
-    }
-  };
-
-  const fetchStudents = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('students')
-        .select('*')
-        .order('name');
-
-      if (error) throw error;
-      setStudents(data || []);
-    } catch (error) {
-      console.error('Error fetching students:', error);
     }
   };
 
@@ -297,97 +280,21 @@ const Children = () => {
               </DialogDescription>
             </DialogHeader>
             
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {!editingChild && (
-                <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
-                  <Label>Cari Siswa Berdasarkan NIK (Opsional)</Label>
-                  <div className="flex space-x-2">
-                    <Input
-                      value={searchNik}
-                      onChange={(e) => setSearchNik(e.target.value)}
-                      placeholder="Masukkan NIK siswa"
-                      maxLength={16}
-                    />
-                    <Button type="button" onClick={searchStudentByNik} variant="outline">
-                      <Search className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  {selectedStudent && (
-                    <div className="p-3 bg-green-50 border border-green-200 rounded-md">
-                      <p className="text-sm font-medium text-green-800">
-                        Siswa Ditemukan: {selectedStudent.name}
-                      </p>
-                      <p className="text-sm text-green-600">
-                        NIK: {selectedStudent.nik} | NIS: {selectedStudent.nis || '-'} | Kelas: {selectedStudent.class_name || '-'}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <Label htmlFor="name">Nama Anak *</Label>
-                <Input
-                  id="name"
-                  name="name"
-                  required
-                  defaultValue={editingChild?.name || selectedStudent?.name || ''}
-                  placeholder="Masukkan nama anak"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="className">Kelas *</Label>
-                <Select name="className" defaultValue={editingChild?.class_name || selectedStudent?.class_name || ''}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih kelas" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {classes.map((cls) => (
-                      <SelectItem key={cls.id} value={cls.name}>
-                        {cls.name} {cls.description && `- ${cls.description}`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="nik">NIK</Label>
-                <Input
-                  id="nik"
-                  name="nik"
-                  maxLength={16}
-                  defaultValue={editingChild?.nik || selectedStudent?.nik || ''}
-                  placeholder="16 digit NIK (opsional)"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="nis">NIS</Label>
-                <Input
-                  id="nis"
-                  name="nis"
-                  defaultValue={editingChild?.nis || selectedStudent?.nis || ''}
-                  placeholder="Nomor Induk Siswa (opsional)"
-                />
-              </div>
-              
-              <div className="flex justify-end space-x-2 pt-4">
-                <Button type="button" variant="outline" onClick={resetForm}>
-                  Batal
-                </Button>
-                <Button type="submit" className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600">
-                  {editingChild ? 'Perbarui' : 'Tambah'}
-                </Button>
-              </div>
-            </form>
+            <ChildForm
+              child={editingChild}
+              classes={classes}
+              searchNik={searchNik}
+              selectedStudent={selectedStudent}
+              onSubmit={handleSubmit}
+              onCancel={resetForm}
+              onSearchNikChange={setSearchNik}
+              onSearchStudent={searchStudentByNik}
+            />
           </DialogContent>
         </Dialog>
       </div>
 
-      {// ... keep existing code (empty state and children cards with pagination)}
-      children.length === 0 ? (
+      {children.length === 0 ? (
         <Card className="text-center py-12">
           <CardContent>
             <Users className="h-16 w-16 mx-auto text-gray-400 mb-4" />
@@ -408,40 +315,12 @@ const Children = () => {
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {paginatedChildren.map((child) => (
-              <Card key={child.id} className="hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <span className="text-lg">{child.name}</span>
-                    <div className="flex space-x-1">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleEdit(child)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleDelete(child.id)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </CardTitle>
-                  <CardDescription>
-                    Kelas {child.class_name}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-1 text-sm text-gray-600">
-                    {child.nik && <div>NIK: {child.nik}</div>}
-                    {child.nis && <div>NIS: {child.nis}</div>}
-                    <div>Ditambahkan: {new Date(child.created_at).toLocaleDateString('id-ID')}</div>
-                  </div>
-                </CardContent>
-              </Card>
+              <ChildCard
+                key={child.id}
+                child={child}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+              />
             ))}
           </div>
 
