@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -5,9 +6,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Plus, Edit, Trash2, Users } from 'lucide-react';
-import { toast } from '@/components/ui/use-toast';
+import { Plus, Edit, Trash2, Users, Search } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
 import { usePagination } from '@/hooks/usePagination';
 import { PaginationControls } from '@/components/ui/pagination-controls';
 
@@ -15,14 +17,35 @@ interface Child {
   id: string;
   name: string;
   class_name: string;
+  nik?: string;
+  nis?: string;
   created_at: string;
+}
+
+interface Class {
+  id: string;
+  name: string;
+  description?: string;
+  is_active: boolean;
+}
+
+interface Student {
+  id: string;
+  nik: string;
+  nis?: string;
+  name: string;
+  class_name?: string;
 }
 
 const Children = () => {
   const [children, setChildren] = useState<Child[]>([]);
+  const [classes, setClasses] = useState<Class[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingChild, setEditingChild] = useState<Child | null>(null);
+  const [searchNik, setSearchNik] = useState('');
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const { user } = useAuth();
 
   // Pagination
@@ -44,6 +67,8 @@ const Children = () => {
   useEffect(() => {
     if (user) {
       fetchChildren();
+      fetchClasses();
+      fetchStudents();
     }
   }, [user]);
 
@@ -69,11 +94,78 @@ const Children = () => {
     }
   };
 
+  const fetchClasses = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('classes')
+        .select('*')
+        .eq('is_active', true)
+        .order('name');
+
+      if (error) throw error;
+      setClasses(data || []);
+    } catch (error) {
+      console.error('Error fetching classes:', error);
+    }
+  };
+
+  const fetchStudents = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('students')
+        .select('*')
+        .order('name');
+
+      if (error) throw error;
+      setStudents(data || []);
+    } catch (error) {
+      console.error('Error fetching students:', error);
+    }
+  };
+
+  const searchStudentByNik = async () => {
+    if (!searchNik.trim()) {
+      setSelectedStudent(null);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('students')
+        .select('*')
+        .eq('nik', searchNik.trim())
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          toast({
+            title: "Tidak Ditemukan",
+            description: "Siswa dengan NIK tersebut tidak ditemukan",
+            variant: "destructive",
+          });
+        }
+        setSelectedStudent(null);
+        return;
+      }
+
+      setSelectedStudent(data);
+      toast({
+        title: "Siswa Ditemukan!",
+        description: `${data.name} - ${data.class_name || 'Belum ada kelas'}`,
+      });
+    } catch (error) {
+      console.error('Error searching student:', error);
+      setSelectedStudent(null);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const name = formData.get('name') as string;
     const className = formData.get('className') as string;
+    const nik = formData.get('nik') as string;
+    const nis = formData.get('nis') as string;
 
     try {
       if (editingChild) {
@@ -82,6 +174,8 @@ const Children = () => {
           .update({
             name,
             class_name: className,
+            nik: nik || null,
+            nis: nis || null,
           })
           .eq('id', editingChild.id);
 
@@ -97,6 +191,8 @@ const Children = () => {
             user_id: user?.id,
             name,
             class_name: className,
+            nik: nik || null,
+            nis: nis || null,
           });
 
         if (error) throw error;
@@ -108,6 +204,8 @@ const Children = () => {
 
       setIsDialogOpen(false);
       setEditingChild(null);
+      setSelectedStudent(null);
+      setSearchNik('');
       fetchChildren();
     } catch (error: any) {
       console.error('Error saving child:', error);
@@ -121,6 +219,8 @@ const Children = () => {
 
   const handleEdit = (child: Child) => {
     setEditingChild(child);
+    setSelectedStudent(null);
+    setSearchNik('');
     setIsDialogOpen(true);
   };
 
@@ -154,6 +254,8 @@ const Children = () => {
 
   const resetForm = () => {
     setEditingChild(null);
+    setSelectedStudent(null);
+    setSearchNik('');
     setIsDialogOpen(false);
   };
 
@@ -185,36 +287,89 @@ const Children = () => {
               Tambah Anak
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>
                 {editingChild ? 'Edit Data Anak' : 'Tambah Anak Baru'}
               </DialogTitle>
               <DialogDescription>
-                {editingChild ? 'Perbarui informasi anak' : 'Masukkan informasi anak untuk pemesanan makanan'}
+                {editingChild ? 'Perbarui informasi anak' : 'Masukkan informasi anak atau cari berdasarkan NIK'}
               </DialogDescription>
             </DialogHeader>
             
             <form onSubmit={handleSubmit} className="space-y-4">
+              {!editingChild && (
+                <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
+                  <Label>Cari Siswa Berdasarkan NIK (Opsional)</Label>
+                  <div className="flex space-x-2">
+                    <Input
+                      value={searchNik}
+                      onChange={(e) => setSearchNik(e.target.value)}
+                      placeholder="Masukkan NIK siswa"
+                      maxLength={16}
+                    />
+                    <Button type="button" onClick={searchStudentByNik} variant="outline">
+                      <Search className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  {selectedStudent && (
+                    <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+                      <p className="text-sm font-medium text-green-800">
+                        Siswa Ditemukan: {selectedStudent.name}
+                      </p>
+                      <p className="text-sm text-green-600">
+                        NIK: {selectedStudent.nik} | NIS: {selectedStudent.nis || '-'} | Kelas: {selectedStudent.class_name || '-'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="space-y-2">
-                <Label htmlFor="name">Nama Anak</Label>
+                <Label htmlFor="name">Nama Anak *</Label>
                 <Input
                   id="name"
                   name="name"
                   required
-                  defaultValue={editingChild?.name || ''}
+                  defaultValue={editingChild?.name || selectedStudent?.name || ''}
                   placeholder="Masukkan nama anak"
                 />
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="className">Kelas</Label>
+                <Label htmlFor="className">Kelas *</Label>
+                <Select name="className" defaultValue={editingChild?.class_name || selectedStudent?.class_name || ''}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih kelas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {classes.map((cls) => (
+                      <SelectItem key={cls.id} value={cls.name}>
+                        {cls.name} {cls.description && `- ${cls.description}`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="nik">NIK</Label>
                 <Input
-                  id="className"
-                  name="className"
-                  required
-                  defaultValue={editingChild?.class_name || ''}
-                  placeholder="Contoh: 1A, 2B, dll"
+                  id="nik"
+                  name="nik"
+                  maxLength={16}
+                  defaultValue={editingChild?.nik || selectedStudent?.nik || ''}
+                  placeholder="16 digit NIK (opsional)"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="nis">NIS</Label>
+                <Input
+                  id="nis"
+                  name="nis"
+                  defaultValue={editingChild?.nis || selectedStudent?.nis || ''}
+                  placeholder="Nomor Induk Siswa (opsional)"
                 />
               </div>
               
@@ -231,7 +386,8 @@ const Children = () => {
         </Dialog>
       </div>
 
-      {children.length === 0 ? (
+      {// ... keep existing code (empty state and children cards with pagination)}
+      children.length === 0 ? (
         <Card className="text-center py-12">
           <CardContent>
             <Users className="h-16 w-16 mx-auto text-gray-400 mb-4" />
@@ -279,15 +435,16 @@ const Children = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-sm text-gray-600">
-                    Ditambahkan: {new Date(child.created_at).toLocaleDateString('id-ID')}
+                  <div className="space-y-1 text-sm text-gray-600">
+                    {child.nik && <div>NIK: {child.nik}</div>}
+                    {child.nis && <div>NIS: {child.nis}</div>}
+                    <div>Ditambahkan: {new Date(child.created_at).toLocaleDateString('id-ID')}</div>
                   </div>
                 </CardContent>
               </Card>
             ))}
           </div>
 
-          {/* Pagination Controls */}
           <PaginationControls
             currentPage={currentPage}
             totalPages={totalPages}
