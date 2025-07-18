@@ -13,6 +13,7 @@ import { format } from 'date-fns';
 
 interface Order {
   id: string;
+  child_id: string | null;
   child_name: string;
   child_class: string;
   total_amount: number;
@@ -57,11 +58,67 @@ export default function CashierDashboard() {
     try {
       console.log('CashierDashboard: Searching orders with term:', searchTerm);
 
-      // Search in orders table with child data
+      // First, search for children by NIK, NIS, name, or class
+      const { data: childrenData, error: childrenError } = await supabase
+        .from('children')
+        .select('id, name, class_name, nik, nis')
+        .or(`name.ilike.%${searchTerm}%,class_name.ilike.%${searchTerm}%,nik.ilike.%${searchTerm}%,nis.ilike.%${searchTerm}%`)
+        .limit(50);
+
+      if (childrenError) {
+        console.error('CashierDashboard: Children search error:', childrenError);
+        throw childrenError;
+      }
+
+      console.log('CashierDashboard: Found children:', childrenData?.length || 0);
+
+      let allOrderIds: string[] = [];
+
+      // If we found children, get their order IDs
+      if (childrenData && childrenData.length > 0) {
+        const childIds = childrenData.map(child => child.id);
+        
+        const { data: childOrderIds, error: childOrderError } = await supabase
+          .from('orders')
+          .select('id')
+          .in('child_id', childIds)
+          .not('delivery_date', 'is', null);
+
+        if (!childOrderError && childOrderIds) {
+          allOrderIds = childOrderIds.map(order => order.id);
+        }
+      }
+
+      // Also search directly in orders by child_name and child_class
+      const { data: directOrders, error: directOrderError } = await supabase
+        .from('orders')
+        .select('id')
+        .or(`child_name.ilike.%${searchTerm}%,child_class.ilike.%${searchTerm}%`)
+        .not('child_name', 'is', null)
+        .not('delivery_date', 'is', null);
+
+      if (!directOrderError && directOrders) {
+        const directOrderIds = directOrders.map(order => order.id);
+        allOrderIds = [...allOrderIds, ...directOrderIds];
+      }
+
+      // Remove duplicates
+      const uniqueOrderIds = [...new Set(allOrderIds)];
+
+      console.log('CashierDashboard: Found order IDs:', uniqueOrderIds.length);
+
+      if (uniqueOrderIds.length === 0) {
+        setOrders([]);
+        setFilteredOrders([]);
+        return;
+      }
+
+      // Fetch complete order details
       const { data: ordersData, error: ordersError } = await supabase
         .from('orders')
         .select(`
           id,
+          child_id,
           child_name,
           child_class,
           total_amount,
@@ -76,79 +133,19 @@ export default function CashierDashboard() {
             )
           )
         `)
-        .or(`child_name.ilike.%${searchTerm}%,child_class.ilike.%${searchTerm}%`)
-        .not('child_name', 'is', null)
-        .not('delivery_date', 'is', null)
+        .in('id', uniqueOrderIds)
         .order('delivery_date', { ascending: false })
         .limit(20);
 
       if (ordersError) {
-        console.error('CashierDashboard: Orders search error:', ordersError);
+        console.error('CashierDashboard: Orders fetch error:', ordersError);
         throw ordersError;
       }
 
-      // Search in children table by NIK/NIS and get related orders
-      const { data: childrenData, error: childrenError } = await supabase
-        .from('children')
-        .select(`
-          name,
-          class_name,
-          nik,
-          nis
-        `)
-        .or(`name.ilike.%${searchTerm}%,class_name.ilike.%${searchTerm}%,nik.ilike.%${searchTerm}%,nis.ilike.%${searchTerm}%`)
-        .limit(20);
-
-      if (childrenError) {
-        console.error('CashierDashboard: Children search error:', childrenError);
-      }
-
-      // If we found children, search for their orders
-      let childOrdersData: any[] = [];
-      if (childrenData && childrenData.length > 0) {
-        const childNames = childrenData.map(child => child.name);
-        const childClasses = childrenData.map(child => child.class_name);
-        
-        const { data: childOrders, error: childOrdersError } = await supabase
-          .from('orders')
-          .select(`
-            id,
-            child_name,
-            child_class,
-            total_amount,
-            payment_status,
-            delivery_date,
-            created_at,
-            order_items (
-              quantity,
-              price,
-              menu_items (
-                name
-              )
-            )
-          `)
-          .or(`child_name.in.(${childNames.map(name => `"${name}"`).join(',')}),child_class.in.(${childClasses.map(cls => `"${cls}"`).join(',')})`)
-          .not('child_name', 'is', null)
-          .not('delivery_date', 'is', null)
-          .order('delivery_date', { ascending: false })
-          .limit(20);
-
-        if (!childOrdersError && childOrders) {
-          childOrdersData = childOrders;
-        }
-      }
-
-      // Combine and deduplicate results
-      const allOrders = [...(ordersData || []), ...childOrdersData];
-      const uniqueOrders = allOrders.filter((order, index, self) => 
-        index === self.findIndex(o => o.id === order.id)
-      );
-
-      console.log('CashierDashboard: Found orders:', uniqueOrders.length);
-      console.log('CashierDashboard: Order details:', uniqueOrders);
+      console.log('CashierDashboard: Final orders found:', ordersData?.length || 0);
       
-      setOrders(uniqueOrders);
-      setFilteredOrders(uniqueOrders);
+      setOrders(ordersData || []);
+      setFilteredOrders(ordersData || []);
     } catch (error) {
       console.error('CashierDashboard: Error searching orders:', error);
       toast({

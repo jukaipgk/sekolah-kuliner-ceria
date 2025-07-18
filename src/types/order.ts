@@ -1,6 +1,7 @@
 
 export interface Order {
   id: string;
+  child_id: string | null;
   child_name: string;
   child_class: string;
   total_amount: number;

@@ -366,6 +366,7 @@ export type Database = {
       orders: {
         Row: {
           child_class: string | null
+          child_id: string | null
           child_name: string | null
           created_at: string
           delivery_date: string | null
@@ -386,6 +387,7 @@ export type Database = {
         }
         Insert: {
           child_class?: string | null
+          child_id?: string | null
           child_name?: string | null
           created_at?: string
           delivery_date?: string | null
@@ -406,6 +408,7 @@ export type Database = {
         }
         Update: {
           child_class?: string | null
+          child_id?: string | null
           child_name?: string | null
           created_at?: string
           delivery_date?: string | null
@@ -424,7 +427,15 @@ export type Database = {
           updated_at?: string
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "orders_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       payments: {
         Row: {
