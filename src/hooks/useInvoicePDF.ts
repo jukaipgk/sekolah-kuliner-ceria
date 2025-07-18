@@ -1,13 +1,12 @@
 
-import React from 'react';
 import { formatPrice, formatDate } from '@/utils/orderUtils';
 import { Order } from '@/types/order';
 
-interface InvoicePDFProps {
+interface UseInvoicePDFProps {
   order: Order;
 }
 
-export const InvoicePDF: React.FC<InvoicePDFProps> = ({ order }) => {
+export const useInvoicePDF = ({ order }: UseInvoicePDFProps) => {
   const generateInvoiceHTML = () => {
     return `
       <!DOCTYPE html>

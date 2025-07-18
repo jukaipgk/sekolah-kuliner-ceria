@@ -1,5 +1,4 @@
 
-import React from 'react';
 import { formatPrice, formatDate } from '@/utils/orderUtils';
 
 interface Order {
@@ -19,19 +18,19 @@ interface Order {
   }[];
 }
 
-interface CashPaymentReceiptProps {
+interface UseCashPaymentReceiptProps {
   order: Order;
   receivedAmount: number;
   changeAmount: number;
   printerType?: string;
 }
 
-export const CashPaymentReceipt: React.FC<CashPaymentReceiptProps> = ({ 
+export const useCashPaymentReceipt = ({ 
   order, 
   receivedAmount, 
   changeAmount,
   printerType = 'standard'
-}) => {
+}: UseCashPaymentReceiptProps) => {
   const printerStyles = {
     standard: {
       fontSize: '12px',

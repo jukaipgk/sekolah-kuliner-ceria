@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,7 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { formatPrice } from '@/utils/orderUtils';
 import { Calculator, CreditCard } from 'lucide-react';
 import { PrintButton } from '@/components/ui/print-button';
-import { CashPaymentReceipt } from './CashPaymentReceipt';
+import { useCashPaymentReceipt } from '@/hooks/useCashPaymentReceipt';
 
 interface Order {
   id: string;
@@ -44,7 +43,7 @@ export const CashPayment: React.FC<CashPaymentProps> = ({ order, onPaymentComple
   const changeAmount = receivedAmountNumber - order.total_amount;
   const isValidPayment = receivedAmountNumber >= order.total_amount;
 
-  const { handlePrint } = CashPaymentReceipt({ 
+  const { handlePrint } = useCashPaymentReceipt({ 
     order, 
     receivedAmount: receivedAmountNumber, 
     changeAmount: Math.max(0, changeAmount) 
@@ -148,13 +147,13 @@ export const CashPayment: React.FC<CashPaymentProps> = ({ order, onPaymentComple
 
   const handlePrintReceipt = (printerType?: string) => {
     if (paymentCompleted) {
-      const receiptHandler = CashPaymentReceipt({ 
+      const receiptHook = useCashPaymentReceipt({ 
         order, 
         receivedAmount: receivedAmountNumber, 
         changeAmount: Math.max(0, changeAmount),
         printerType 
       });
-      receiptHandler.handlePrint();
+      receiptHook.handlePrint();
     }
   };
 

@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -14,7 +13,7 @@ import {
   isOrderExpired,
   canPayOrder
 } from '@/utils/orderUtils';
-import { InvoicePDF } from './InvoicePDF';
+import { useInvoicePDF } from '@/hooks/useInvoicePDF';
 
 interface OrderCardProps {
   order: Order;
@@ -24,7 +23,7 @@ interface OrderCardProps {
 export const OrderCard = ({ order, onRetryPayment }: OrderCardProps) => {
   const orderExpired = isOrderExpired(order.delivery_date);
   const canPay = canPayOrder(order);
-  const { handleDownloadPDF } = InvoicePDF({ order });
+  const { handleDownloadPDF } = useInvoicePDF({ order });
 
   return (
     <Card className={`hover:shadow-lg transition-shadow ${orderExpired ? 'opacity-75 border-red-200' : ''}`}>
