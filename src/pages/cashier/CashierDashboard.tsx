@@ -429,7 +429,7 @@ export default function CashierDashboard() {
               <p className="text-sm mt-2">Sistem akan menampilkan pesanan yang dapat diproses pembayaran tunai</p>
             </div>
           </CardContent>
-        </div>
+        </Card>
       )}
     </div>
   );
