@@ -11,11 +11,12 @@ import Auth from '@/pages/Auth';
 import AdminDashboard from '@/pages/admin/AdminDashboard';
 import FoodManagement from '@/pages/admin/FoodManagement';
 import OrderManagement from '@/pages/admin/OrderManagement';
-import OrderRecap from '@/pages/admin/OrderRecap';
+import { OrderRecap } from '@/pages/admin/OrderRecap';
 import Reports from '@/pages/admin/Reports';
 import ScheduleManagement from '@/pages/admin/ScheduleManagement';
 import PopulateDailyMenus from '@/pages/admin/PopulateDailyMenus';
 import UserManagement from '@/pages/admin/UserManagement';
+import StudentManagement from '@/pages/admin/StudentManagement';
 import MidtransScript from '@/components/MidtransScript';
 import CashierDashboard from '@/pages/cashier/CashierDashboard';
 import CashierReports from '@/pages/cashier/CashierReports';
@@ -115,6 +116,7 @@ function AppContent() {
                     <Route path="/admin/schedule-management" element={<><Navbar /><ScheduleManagement /></>} />
                     <Route path="/admin/populate-daily-menus" element={<><Navbar /><PopulateDailyMenus /></>} />
                     <Route path="/admin/user-management" element={<><Navbar /><UserManagement /></>} />
+                    <Route path="/admin/student-management" element={<><Navbar /><StudentManagement /></>} />
                   </>
                 )}
                 
