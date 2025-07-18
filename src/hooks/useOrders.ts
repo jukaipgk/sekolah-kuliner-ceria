@@ -4,31 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/components/ui/use-toast';
 import { canPayOrder } from '@/utils/orderUtils';
-
-interface OrderItem {
-  id: string;
-  quantity: number;
-  price: number;
-  menu_items: {
-    name: string;
-    image_url: string;
-  } | null;
-}
-
-interface Order {
-  id: string;
-  child_name: string | null;
-  child_class: string | null;
-  total_amount: number;
-  status: string | null;
-  payment_status: string | null;
-  created_at: string;
-  delivery_date: string | null;
-  notes: string | null;
-  midtrans_order_id: string | null;
-  snap_token: string | null;
-  order_items: OrderItem[];
-}
+import { Order } from '@/types/order';
 
 export const useOrders = () => {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -69,11 +45,24 @@ export const useOrders = () => {
       
       console.log('useOrders: Fetched orders:', data?.length || 0);
       
-      // Transform the data to match our interface
-      const transformedOrders = (data || []).map(order => ({
-        ...order,
+      // Transform the data to match our Order interface
+      const transformedOrders: Order[] = (data || []).map(order => ({
+        id: order.id,
+        child_id: order.child_id,
+        child_name: order.child_name || '',
+        child_class: order.child_class || '',
+        total_amount: order.total_amount,
+        status: order.status || 'pending',
+        payment_status: order.payment_status || 'pending',
+        notes: order.notes,
+        created_at: order.created_at,
+        delivery_date: order.delivery_date,
+        midtrans_order_id: order.midtrans_order_id,
+        snap_token: order.snap_token,
         order_items: order.order_items.map(item => ({
-          ...item,
+          id: item.id,
+          quantity: item.quantity,
+          price: item.price,
           menu_items: item.menu_items || { name: 'Unknown Item', image_url: '' }
         }))
       }));
