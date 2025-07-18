@@ -57,7 +57,8 @@ export default function CashierDashboard() {
     try {
       console.log('CashierDashboard: Searching orders with term:', searchTerm);
 
-      const { data, error } = await supabase
+      // Search in orders table with child data
+      const { data: ordersData, error: ordersError } = await supabase
         .from('orders')
         .select(`
           id,
@@ -81,16 +82,73 @@ export default function CashierDashboard() {
         .order('delivery_date', { ascending: false })
         .limit(20);
 
-      if (error) {
-        console.error('CashierDashboard: Search error:', error);
-        throw error;
+      if (ordersError) {
+        console.error('CashierDashboard: Orders search error:', ordersError);
+        throw ordersError;
       }
 
-      console.log('CashierDashboard: Found orders:', data?.length || 0);
-      console.log('CashierDashboard: Order details:', data);
+      // Search in children table by NIK/NIS and get related orders
+      const { data: childrenData, error: childrenError } = await supabase
+        .from('children')
+        .select(`
+          name,
+          class_name,
+          nik,
+          nis
+        `)
+        .or(`name.ilike.%${searchTerm}%,class_name.ilike.%${searchTerm}%,nik.ilike.%${searchTerm}%,nis.ilike.%${searchTerm}%`)
+        .limit(20);
+
+      if (childrenError) {
+        console.error('CashierDashboard: Children search error:', childrenError);
+      }
+
+      // If we found children, search for their orders
+      let childOrdersData: any[] = [];
+      if (childrenData && childrenData.length > 0) {
+        const childNames = childrenData.map(child => child.name);
+        const childClasses = childrenData.map(child => child.class_name);
+        
+        const { data: childOrders, error: childOrdersError } = await supabase
+          .from('orders')
+          .select(`
+            id,
+            child_name,
+            child_class,
+            total_amount,
+            payment_status,
+            delivery_date,
+            created_at,
+            order_items (
+              quantity,
+              price,
+              menu_items (
+                name
+              )
+            )
+          `)
+          .or(`child_name.in.(${childNames.map(name => `"${name}"`).join(',')}),child_class.in.(${childClasses.map(cls => `"${cls}"`).join(',')})`)
+          .not('child_name', 'is', null)
+          .not('delivery_date', 'is', null)
+          .order('delivery_date', { ascending: false })
+          .limit(20);
+
+        if (!childOrdersError && childOrders) {
+          childOrdersData = childOrders;
+        }
+      }
+
+      // Combine and deduplicate results
+      const allOrders = [...(ordersData || []), ...childOrdersData];
+      const uniqueOrders = allOrders.filter((order, index, self) => 
+        index === self.findIndex(o => o.id === order.id)
+      );
+
+      console.log('CashierDashboard: Found orders:', uniqueOrders.length);
+      console.log('CashierDashboard: Order details:', uniqueOrders);
       
-      setOrders(data || []);
-      setFilteredOrders(data || []);
+      setOrders(uniqueOrders);
+      setFilteredOrders(uniqueOrders);
     } catch (error) {
       console.error('CashierDashboard: Error searching orders:', error);
       toast({
@@ -228,7 +286,7 @@ export default function CashierDashboard() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
-                placeholder="Cari berdasarkan nama siswa atau kelas (minimal 2 karakter)..."
+                placeholder="Cari berdasarkan nama siswa, kelas, NIK, atau NIS (minimal 2 karakter)..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
@@ -240,6 +298,16 @@ export default function CashierDashboard() {
                 Masukkan minimal 2 karakter untuk mencari
               </p>
             )}
+
+            <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">
+              <p className="font-medium mb-1">Tips Pencarian:</p>
+              <ul className="list-disc list-inside space-y-1 text-xs">
+                <li>Cari berdasarkan <strong>nama siswa</strong>: "Ahmad", "Siti"</li>
+                <li>Cari berdasarkan <strong>kelas</strong>: "1A", "2B"</li>
+                <li>Cari berdasarkan <strong>NIK</strong>: "1234567890123456"</li>
+                <li>Cari berdasarkan <strong>NIS</strong>: "2023001"</li>
+              </ul>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -325,6 +393,9 @@ export default function CashierDashboard() {
                               {(isExpanded ? order.order_items : order.order_items.slice(0, 2)).map((item, index) => (
                                 <div key={index} className="text-sm">
                                   {item.quantity}x {item.menu_items?.name || 'Unknown Item'}
+                                  <span className="text-gray-500 ml-2">
+                                    @ {formatPrice(item.price)}
+                                  </span>
                                 </div>
                               ))}
                               {!isExpanded && order.order_items.length > 2 && (
@@ -398,6 +469,12 @@ export default function CashierDashboard() {
                             </div>
                           ))}
                         </div>
+                        <div className="mt-2 pt-2 border-t">
+                          <div className="flex justify-between font-medium">
+                            <span>Total Pesanan:</span>
+                            <span>{formatPrice(order.total_amount)}</span>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -414,7 +491,7 @@ export default function CashierDashboard() {
             <div className="text-center text-gray-500">
               <Search className="h-12 w-12 mx-auto mb-4 text-gray-300" />
               <p>Tidak ada pesanan yang ditemukan untuk "{searchTerm}"</p>
-              <p className="text-sm mt-2">Coba dengan nama siswa atau kelas yang lain</p>
+              <p className="text-sm mt-2">Coba dengan nama siswa, kelas, NIK, atau NIS yang lain</p>
             </div>
           </CardContent>
         </Card>
@@ -425,7 +502,7 @@ export default function CashierDashboard() {
           <CardContent className="p-6">
             <div className="text-center text-gray-500">
               <Search className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-              <p>Masukkan nama siswa atau kelas untuk mencari pesanan</p>
+              <p>Masukkan nama siswa, kelas, NIK, atau NIS untuk mencari pesanan</p>
               <p className="text-sm mt-2">Sistem akan menampilkan pesanan yang dapat diproses pembayaran tunai</p>
             </div>
           </CardContent>
