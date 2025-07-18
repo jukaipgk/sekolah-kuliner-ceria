@@ -37,6 +37,14 @@ export default function CashierDashboard() {
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
 
   useEffect(() => {
+    console.log('CashierDashboard: Component mounted');
+    return () => {
+      console.log('CashierDashboard: Component unmounted');
+    };
+  }, []);
+
+  useEffect(() => {
+    console.log('CashierDashboard: Search term changed:', searchTerm);
     if (searchTerm.length >= 2) {
       searchOrders();
     } else {
@@ -87,7 +95,7 @@ export default function CashierDashboard() {
       console.error('CashierDashboard: Error searching orders:', error);
       toast({
         title: "Error",
-        description: "Gagal mencari pesanan",
+        description: "Gagal mencari pesanan: " + (error as Error).message,
         variant: "destructive",
       });
     } finally {
@@ -96,6 +104,7 @@ export default function CashierDashboard() {
   };
 
   const handlePaymentComplete = () => {
+    console.log('CashierDashboard: Payment completed');
     setSelectedOrder(null);
     // Refresh search results
     if (searchTerm.length >= 2) {
@@ -108,6 +117,7 @@ export default function CashierDashboard() {
   };
 
   const toggleOrderExpansion = (orderId: string) => {
+    console.log('CashierDashboard: Toggling order expansion for:', orderId);
     const newExpanded = new Set(expandedOrders);
     if (newExpanded.has(orderId)) {
       newExpanded.delete(orderId);
@@ -136,11 +146,46 @@ export default function CashierDashboard() {
   };
 
   const isOrderExpired = (deliveryDate: string): boolean => {
-    const delivery = new Date(deliveryDate);
-    const today = new Date();
-    delivery.setHours(0, 0, 0, 0);
-    today.setHours(0, 0, 0, 0);
-    return delivery < today;
+    if (!deliveryDate) {
+      console.warn('CashierDashboard: No delivery date provided');
+      return false;
+    }
+    try {
+      const delivery = new Date(deliveryDate);
+      const today = new Date();
+      delivery.setHours(0, 0, 0, 0);
+      today.setHours(0, 0, 0, 0);
+      return delivery < today;
+    } catch (error) {
+      console.error('CashierDashboard: Error parsing delivery date:', deliveryDate, error);
+      return false;
+    }
+  };
+
+  const formatDeliveryDate = (dateString: string) => {
+    if (!dateString) {
+      console.warn('CashierDashboard: No date string provided for formatting');
+      return 'Tanggal tidak tersedia';
+    }
+    try {
+      return format(new Date(dateString), "dd/MM/yyyy");
+    } catch (error) {
+      console.error('CashierDashboard: Error formatting date:', dateString, error);
+      return 'Format tanggal tidak valid';
+    }
+  };
+
+  const formatCreatedDate = (dateString: string) => {
+    if (!dateString) {
+      console.warn('CashierDashboard: No created date string provided for formatting');
+      return 'Tanggal tidak tersedia';
+    }
+    try {
+      return format(new Date(dateString), "dd/MM/yyyy HH:mm");
+    } catch (error) {
+      console.error('CashierDashboard: Error formatting created date:', dateString, error);
+      return 'Format tanggal tidak valid';
+    }
   };
 
   if (selectedOrder) {
@@ -232,10 +277,10 @@ export default function CashierDashboard() {
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
                           <User className="h-4 w-4 text-gray-500" />
-                          <span className="font-medium">{order.child_name}</span>
+                          <span className="font-medium">{order.child_name || 'Nama tidak tersedia'}</span>
                         </div>
                         <div className="text-sm text-gray-600">
-                          Kelas: {order.child_class}
+                          Kelas: {order.child_class || 'Kelas tidak tersedia'}
                         </div>
                       </div>
 
@@ -246,7 +291,7 @@ export default function CashierDashboard() {
                           <span className="text-sm">Tanggal Katering</span>
                         </div>
                         <div className="font-medium">
-                          {format(new Date(order.delivery_date), "dd/MM/yyyy")}
+                          {formatDeliveryDate(order.delivery_date)}
                         </div>
                         {isExpired && (
                           <Badge variant="destructive" className="text-xs">
@@ -331,7 +376,7 @@ export default function CashierDashboard() {
                     {/* Additional Order Info */}
                     <div className="mt-3 pt-3 border-t text-xs text-gray-500">
                       <div className="flex justify-between">
-                        <span>Dibuat: {format(new Date(order.created_at), "dd/MM/yyyy HH:mm")}</span>
+                        <span>Dibuat: {formatCreatedDate(order.created_at)}</span>
                         <span>Total Item: {order.order_items?.reduce((sum, item) => sum + item.quantity, 0) || 0}</span>
                       </div>
                     </div>
@@ -384,7 +429,7 @@ export default function CashierDashboard() {
               <p className="text-sm mt-2">Sistem akan menampilkan pesanan yang dapat diproses pembayaran tunai</p>
             </div>
           </CardContent>
-        </Card>
+        </div>
       )}
     </div>
   );
