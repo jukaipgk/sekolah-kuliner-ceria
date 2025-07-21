@@ -16,20 +16,20 @@ import { RecapPrint } from '@/components/print/RecapPrint';
 import { DetailOrdersPrint } from '@/components/print/DetailOrdersPrint';
 
 interface RecapData {
-  date: string;
-  total_orders: number;
-  total_amount: number;
-  paid_orders: number;
-  pending_orders: number;
-  total_items: number;
+  id: string;
+  menu_name: string;
+  quantity: number;
 }
 
 interface DetailedOrder {
   id: string;
   child_name: string;
   child_class: string;
-  total_amount: number;
-  payment_status: string;
+  menu_name: string;
+  item_code: string;
+  quantity: number;
+  kitchen_check: boolean;
+  homeroom_check: boolean;
   delivery_date: string;
   order_items: {
     quantity: number;
@@ -85,6 +85,13 @@ export const OrderRecap = ({ onExportData }: OrderRecapProps) => {
     }
   };
 
+  const generateItemCode = (menuName: string) => {
+    return menuName
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase())
+      .join('');
+  };
+
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -95,8 +102,6 @@ export const OrderRecap = ({ onExportData }: OrderRecapProps) => {
           id,
           child_name,
           child_class,
-          total_amount,
-          payment_status,
           delivery_date,
           order_items (
             quantity,
@@ -118,7 +123,7 @@ export const OrderRecap = ({ onExportData }: OrderRecapProps) => {
         query = query.eq('payment_status', selectedPaymentStatus);
       }
 
-      // Apply delivery date filters (using delivery_date, not created_at)
+      // Apply delivery date filters
       if (startDate) {
         const startOfDay = new Date(startDate);
         startOfDay.setHours(0, 0, 0, 0);
@@ -135,43 +140,46 @@ export const OrderRecap = ({ onExportData }: OrderRecapProps) => {
 
       if (error) throw error;
 
-      setDetailedOrders(ordersData || []);
+      // Process data for recap (group by menu name)
+      const recapMap = new Map<string, number>();
+      const detailedOrdersData: DetailedOrder[] = [];
 
-      // Group by delivery_date for recap
-      const recapMap = new Map<string, RecapData>();
-      
       ordersData?.forEach(order => {
-        const date = order.delivery_date;
-        const totalItems = order.order_items.reduce((sum, item) => sum + item.quantity, 0);
-        
-        if (!recapMap.has(date)) {
-          recapMap.set(date, {
-            date,
-            total_orders: 0,
-            total_amount: 0,
-            paid_orders: 0,
-            pending_orders: 0,
-            total_items: 0,
+        order.order_items.forEach(item => {
+          const menuName = item.menu_items?.name || 'Unknown Item';
+          
+          // For recap data
+          if (recapMap.has(menuName)) {
+            recapMap.set(menuName, recapMap.get(menuName)! + item.quantity);
+          } else {
+            recapMap.set(menuName, item.quantity);
+          }
+
+          // For detailed orders
+          detailedOrdersData.push({
+            id: `${order.id}-${Math.random()}`,
+            child_name: order.child_name || '',
+            child_class: order.child_class || '',
+            menu_name: menuName,
+            item_code: generateItemCode(menuName),
+            quantity: item.quantity,
+            kitchen_check: false, // Default values, can be extended later
+            homeroom_check: false,
+            delivery_date: order.delivery_date,
+            order_items: [item]
           });
-        }
-        
-        const recap = recapMap.get(date)!;
-        recap.total_orders += 1;
-        recap.total_amount += order.total_amount;
-        recap.total_items += totalItems;
-        
-        if (order.payment_status === 'paid') {
-          recap.paid_orders += 1;
-        } else {
-          recap.pending_orders += 1;
-        }
+        });
       });
 
-      const recapArray = Array.from(recapMap.values()).sort((a, b) => 
-        new Date(b.date).getTime() - new Date(a.date).getTime()
-      );
-      
+      // Convert recap map to array
+      const recapArray = Array.from(recapMap.entries()).map(([menuName, quantity], index) => ({
+        id: `recap-${index}`,
+        menu_name: menuName,
+        quantity: quantity
+      }));
+
       setRecapData(recapArray);
+      setDetailedOrders(detailedOrdersData);
       
       // Call export callback if provided
       if (onExportData) {
@@ -205,16 +213,6 @@ export const OrderRecap = ({ onExportData }: OrderRecapProps) => {
       case 'failed': return 'Gagal';
       case 'refunded': return 'Refund';
       default: return status;
-    }
-  };
-
-  const getPaymentStatusColor = (status: string) => {
-    switch (status) {
-      case 'paid': return 'text-green-600 bg-green-50';
-      case 'pending': return 'text-yellow-600 bg-yellow-50';
-      case 'failed': return 'text-red-600 bg-red-50';
-      case 'refunded': return 'text-gray-600 bg-gray-50';
-      default: return 'text-gray-600 bg-gray-50';
     }
   };
 
@@ -401,49 +399,37 @@ export const OrderRecap = ({ onExportData }: OrderRecapProps) => {
             <table className="w-full border-collapse border border-gray-300">
               <thead>
                 <tr className="bg-gray-50">
-                  <th className="border border-gray-300 px-4 py-2 text-left">Tanggal Katering</th>
-                  <th className="border border-gray-300 px-4 py-2 text-center">Total Pesanan</th>
-                  <th className="border border-gray-300 px-4 py-2 text-center">Total Item</th>
-                  <th className="border border-gray-300 px-4 py-2 text-center">Lunas</th>
-                  <th className="border border-gray-300 px-4 py-2 text-center">Belum Bayar</th>
-                  <th className="border border-gray-300 px-4 py-2 text-right">Total Pendapatan</th>
+                  <th className="border border-gray-300 px-4 py-2 text-left">Nomor Urut</th>
+                  <th className="border border-gray-300 px-4 py-2 text-left">Nama Pesanan</th>
+                  <th className="border border-gray-300 px-4 py-2 text-center">Jumlah</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="border border-gray-300 px-4 py-8 text-center">
+                    <td colSpan={3} className="border border-gray-300 px-4 py-8 text-center">
                       <div className="animate-pulse">Memuat data...</div>
                     </td>
                   </tr>
                 ) : recapData.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="border border-gray-300 px-4 py-8 text-center">
+                    <td colSpan={3} className="border border-gray-300 px-4 py-8 text-center">
                       <div className="text-gray-500">
                         Tidak ada data yang sesuai dengan filter
                       </div>
                     </td>
                   </tr>
                 ) : (
-                  recapData.map((item) => (
-                    <tr key={item.date} className="hover:bg-gray-50">
-                      <td className="border border-gray-300 px-4 py-2 font-medium">
-                        {format(new Date(item.date), "dd MMMM yyyy")}
+                  recapData.map((item, index) => (
+                    <tr key={item.id} className="hover:bg-gray-50">
+                      <td className="border border-gray-300 px-4 py-2 text-center font-medium">
+                        {index + 1}
+                      </td>
+                      <td className="border border-gray-300 px-4 py-2">
+                        {item.menu_name}
                       </td>
                       <td className="border border-gray-300 px-4 py-2 text-center">
-                        {item.total_orders}
-                      </td>
-                      <td className="border border-gray-300 px-4 py-2 text-center">
-                        {item.total_items}
-                      </td>
-                      <td className="border border-gray-300 px-4 py-2 text-center text-green-600">
-                        {item.paid_orders}
-                      </td>
-                      <td className="border border-gray-300 px-4 py-2 text-center text-yellow-600">
-                        {item.pending_orders}
-                      </td>
-                      <td className="border border-gray-300 px-4 py-2 text-right font-medium">
-                        {formatPrice(item.total_amount)}
+                        {item.quantity}
                       </td>
                     </tr>
                   ))
@@ -454,24 +440,18 @@ export const OrderRecap = ({ onExportData }: OrderRecapProps) => {
 
           {/* Summary Cards */}
           {recapData.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
               <div className="bg-blue-50 p-4 rounded-lg">
                 <div className="text-2xl font-bold text-blue-600">
-                  {recapData.reduce((sum, item) => sum + item.total_orders, 0)}
+                  {recapData.length}
                 </div>
-                <div className="text-sm text-blue-600">Total Pesanan</div>
+                <div className="text-sm text-blue-600">Total Jenis Menu</div>
               </div>
               <div className="bg-green-50 p-4 rounded-lg">
                 <div className="text-2xl font-bold text-green-600">
-                  {recapData.reduce((sum, item) => sum + item.paid_orders, 0)}
+                  {recapData.reduce((sum, item) => sum + item.quantity, 0)}
                 </div>
-                <div className="text-sm text-green-600">Pesanan Lunas</div>
-              </div>
-              <div className="bg-purple-50 p-4 rounded-lg">
-                <div className="text-2xl font-bold text-purple-600">
-                  {formatPrice(recapData.reduce((sum, item) => sum + item.total_amount, 0))}
-                </div>
-                <div className="text-sm text-purple-600">Total Pendapatan</div>
+                <div className="text-sm text-green-600">Total Jumlah Pesanan</div>
               </div>
             </div>
           )}
@@ -496,17 +476,22 @@ export const OrderRecap = ({ onExportData }: OrderRecapProps) => {
               <table className="w-full border-collapse border border-gray-300">
                 <thead>
                   <tr className="bg-gray-50">
+                    <th className="border border-gray-300 px-4 py-2 text-left">Nomor Urut</th>
                     <th className="border border-gray-300 px-4 py-2 text-left">Nama Siswa</th>
                     <th className="border border-gray-300 px-4 py-2 text-left">Kelas</th>
-                    <th className="border border-gray-300 px-4 py-2 text-left">Tanggal Katering</th>
-                    <th className="border border-gray-300 px-4 py-2 text-left">Detail Pesanan</th>
-                    <th className="border border-gray-300 px-4 py-2 text-center">Status Bayar</th>
-                    <th className="border border-gray-300 px-4 py-2 text-right">Total</th>
+                    <th className="border border-gray-300 px-4 py-2 text-left">Nama Pesanan</th>
+                    <th className="border border-gray-300 px-4 py-2 text-left">Kode Item</th>
+                    <th className="border border-gray-300 px-4 py-2 text-center">Jumlah</th>
+                    <th className="border border-gray-300 px-4 py-2 text-center">Ceklist Dapur</th>
+                    <th className="border border-gray-300 px-4 py-2 text-center">Ceklist Walikelas</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {detailedOrders.map((order) => (
+                  {detailedOrders.map((order, index) => (
                     <tr key={order.id} className="hover:bg-gray-50">
+                      <td className="border border-gray-300 px-4 py-2 text-center font-medium">
+                        {index + 1}
+                      </td>
                       <td className="border border-gray-300 px-4 py-2 font-medium">
                         {order.child_name}
                       </td>
@@ -514,27 +499,29 @@ export const OrderRecap = ({ onExportData }: OrderRecapProps) => {
                         {order.child_class}
                       </td>
                       <td className="border border-gray-300 px-4 py-2">
-                        {format(new Date(order.delivery_date), "dd/MM/yyyy")}
+                        {order.menu_name}
                       </td>
-                      <td className="border border-gray-300 px-4 py-2">
-                        <div className="space-y-1">
-                          {order.order_items.map((item, index) => (
-                            <div key={index} className="text-sm">
-                              {item.quantity}x {item.menu_items?.name || 'Unknown Item'}
-                            </div>
-                          ))}
-                        </div>
+                      <td className="border border-gray-300 px-4 py-2 font-mono text-sm">
+                        {order.item_code}
                       </td>
                       <td className="border border-gray-300 px-4 py-2 text-center">
-                        <span className={cn(
-                          "px-2 py-1 rounded-full text-xs font-medium",
-                          getPaymentStatusColor(order.payment_status)
-                        )}>
-                          {getPaymentStatusLabel(order.payment_status)}
-                        </span>
+                        {order.quantity}
                       </td>
-                      <td className="border border-gray-300 px-4 py-2 text-right font-medium">
-                        {formatPrice(order.total_amount)}
+                      <td className="border border-gray-300 px-4 py-2 text-center">
+                        <input 
+                          type="checkbox" 
+                          checked={order.kitchen_check} 
+                          readOnly
+                          className="h-4 w-4"
+                        />
+                      </td>
+                      <td className="border border-gray-300 px-4 py-2 text-center">
+                        <input 
+                          type="checkbox" 
+                          checked={order.homeroom_check} 
+                          readOnly
+                          className="h-4 w-4"
+                        />
                       </td>
                     </tr>
                   ))}
