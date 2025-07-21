@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -62,6 +63,25 @@ export const CashPayment: React.FC<CashPaymentProps> = ({ order, onPaymentComple
     setLoading(true);
 
     try {
+      // Get current user (cashier)
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        throw new Error('User not authenticated');
+      }
+
+      // Get cashier profile
+      const { data: cashierProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', user.id)
+        .single();
+
+      if (profileError) {
+        console.error('CashPayment: Error fetching cashier profile:', profileError);
+      }
+
+      const cashierName = cashierProfile?.full_name || 'Unknown Cashier';
+
       // Generate transaction ID for cash payment
       const transactionId = `CASH-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
@@ -102,27 +122,24 @@ export const CashPayment: React.FC<CashPaymentProps> = ({ order, onPaymentComple
 
       console.log('CashPayment: Payment recorded successfully');
 
-      // Record cash payment details in cash_payments table
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (user) {
-        const { error: cashPaymentError } = await supabase
-          .from('cash_payments')
-          .insert({
-            order_id: order.id,
-            amount: order.total_amount,
-            received_amount: receivedAmountNumber,
-            change_amount: Math.max(0, changeAmount),
-            cashier_id: user.id,
-            notes: notes || null
-          });
+      // Record cash payment details in cash_payments table with cashier info
+      const { error: cashPaymentError } = await supabase
+        .from('cash_payments')
+        .insert({
+          order_id: order.id,
+          amount: order.total_amount,
+          received_amount: receivedAmountNumber,
+          change_amount: Math.max(0, changeAmount),
+          cashier_id: user.id,
+          cashier_name: cashierName,
+          notes: notes || null
+        });
 
-        if (cashPaymentError) {
-          console.error('CashPayment: Error recording cash payment details:', cashPaymentError);
-          // Don't throw error here as the main payment is already completed
-        } else {
-          console.log('CashPayment: Cash payment details recorded successfully');
-        }
+      if (cashPaymentError) {
+        console.error('CashPayment: Error recording cash payment details:', cashPaymentError);
+        // Don't throw error here as the main payment is already completed
+      } else {
+        console.log('CashPayment: Cash payment details recorded successfully');
       }
 
       setPaymentCompleted(true);

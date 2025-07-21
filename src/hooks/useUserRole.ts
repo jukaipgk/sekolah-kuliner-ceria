@@ -10,7 +10,7 @@ export const useUserRole = () => {
 
   useEffect(() => {
     console.log('useUserRole: user changed', user?.id, user?.email);
-    if (user) {
+    if (user?.id) {
       fetchUserRole();
     } else {
       setRole(null);

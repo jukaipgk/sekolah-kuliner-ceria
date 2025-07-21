@@ -47,6 +47,7 @@ export type Database = {
         Row: {
           amount: number
           cashier_id: string
+          cashier_name: string | null
           change_amount: number
           created_at: string | null
           id: string
@@ -57,6 +58,7 @@ export type Database = {
         Insert: {
           amount: number
           cashier_id: string
+          cashier_name?: string | null
           change_amount?: number
           created_at?: string | null
           id?: string
@@ -67,6 +69,7 @@ export type Database = {
         Update: {
           amount?: number
           cashier_id?: string
+          cashier_name?: string | null
           change_amount?: number
           created_at?: string | null
           id?: string
@@ -75,6 +78,20 @@ export type Database = {
           received_amount?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "cash_payments_cashier_id_fkey"
+            columns: ["cashier_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cash_payments_cashier_id_fkey"
+            columns: ["cashier_id"]
+            isOneToOne: false
+            referencedRelation: "view_user_profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "cash_payments_order_id_fkey"
             columns: ["order_id"]
@@ -136,7 +153,22 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "children_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "children_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "view_user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       classes: {
         Row: {
@@ -365,6 +397,7 @@ export type Database = {
       }
       orders: {
         Row: {
+          admin_fee: number | null
           child_class: string | null
           child_id: string | null
           child_name: string | null
@@ -386,6 +419,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          admin_fee?: number | null
           child_class?: string | null
           child_id?: string | null
           child_name?: string | null
@@ -407,6 +441,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          admin_fee?: number | null
           child_class?: string | null
           child_id?: string | null
           child_name?: string | null
@@ -433,6 +468,20 @@ export type Database = {
             columns: ["child_id"]
             isOneToOne: false
             referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "view_user_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -541,6 +590,33 @@ export type Database = {
         }
         Relationships: []
       }
+      system_settings: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          key: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          key: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          key?: string
+          updated_at?: string
+          value?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -593,12 +669,24 @@ export type Database = {
       }
     }
     Functions: {
+      generate_order_number: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      get_current_user_role: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       get_user_role: {
-        Args: Record<PropertyKey, never> | { _user_id: string }
+        Args: Record<PropertyKey, never> | { _user_id?: string }
         Returns: string
       }
       has_role: {
         Args: { _user_id: string; _role: string }
+        Returns: boolean
+      }
+      validate_user_input: {
+        Args: { input_text: string }
         Returns: boolean
       }
     }
